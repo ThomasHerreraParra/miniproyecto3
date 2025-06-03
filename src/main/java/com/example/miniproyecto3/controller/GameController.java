@@ -1,9 +1,11 @@
 package com.example.miniproyecto3.controller;
 
+import javafx.animation.FadeTransition;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.SnapshotParameters;
+import javafx.scene.control.Label;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.Dragboard;
@@ -14,8 +16,8 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.util.Duration;
 import com.example.miniproyecto3.ships.*;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,11 +29,14 @@ public class GameController extends NavigationAdapter {
     @FXML
     private VBox shipSelectionArea;
 
+    @FXML
+    private Label textFloat; // Referencia al mensaje flotante en la interfaz
+
     // Stock de barcos por tipo
     private Map<String, Integer> shipCounts = new HashMap<>();
 
-
-
+    //Variable que almacena el contador del barco actualmente siendo arrastrado
+    private Label activeCountLanbel = null;
 
     @FXML
     public void initialize() {
@@ -85,15 +90,35 @@ public class GameController extends NavigationAdapter {
                         int row0 = rowIdx == null ? 0 : rowIdx;
                         int col0 = colIdx == null ? 0 : colIdx;
 
-                        // Verificar que quepa horizontalmente
+                        //HU-1 El sistema debe validar que los barcos no se superpongan ni salgan del tablero
                         if (col0 + size <= numCols) {
+                            boolean spaceAvailable = true;
                             for (int i = 0; i < size; i++) {
                                 StackPane target = getCellPaneAt(row0, col0 + i);
-                                Rectangle part = new Rectangle(30, 30, ship.getParts()[i].getFill());
-                                part.setStroke(Color.BLACK);
-                                target.getChildren().add(part);
+                                if (target.getChildren().size() > 1) { // Ya hay un barco
+                                    spaceAvailable = false;
+                                    break;
+                                }
+                            }
+                            if (spaceAvailable) {
+                                for (int i = 0; i < size; i++) {
+                                    StackPane target = getCellPaneAt(row0, col0 + i);
+                                    Rectangle part = new Rectangle(30, 30, ship.getParts()[i].getFill());
+                                    part.setStroke(Color.BLACK);
+                                    target.getChildren().add(part);
+                                }
+                                //Se actualiza el contador solo si se coloca correctamente el narco
+                            if (activeCountLanbel != null) {
+                                int currentCount = Integer.parseInt(activeCountLanbel.getText());
+                                activeCountLanbel.setText(String.valueOf(currentCount - 1));
+                                shipCounts.put(type, currentCount - 1);
                             }
                             success = true;
+                            } else {
+                                showFloatingMessage("Inválido: Espacio ocupado");
+                            }
+                        } else {
+                            showFloatingMessage("Inválido: El barco se sale del tablero");
                         }
                     }
                     e.setDropCompleted(success);
@@ -103,6 +128,7 @@ public class GameController extends NavigationAdapter {
             }
         }
     }
+
     private Ship createShipFromString(String shipType) {
         return switch (shipType) {
             case "fragata"     -> new Fragata();
@@ -112,18 +138,20 @@ public class GameController extends NavigationAdapter {
             default             -> null;
         };
     }
+
     private void loadShips() {
         addShipToSelection("fragata",     new Fragata());
         addShipToSelection("submarino",   new Submarino());
         addShipToSelection("destructor",  new Destructor());
         addShipToSelection("portaviones", new Portaviones());
     }
+
     private void addShipToSelection(String type, Ship ship) {
         HBox shipBox = new HBox(5);
         shipBox.setUserData(type);
 
         // Label con contador
-        javafx.scene.control.Label countLabel = new javafx.scene.control.Label(shipCounts.get(type).toString());
+        Label countLabel = new Label(shipCounts.get(type).toString());
         countLabel.setUserData("label");
         shipBox.getChildren().add(countLabel);
 
@@ -139,6 +167,9 @@ public class GameController extends NavigationAdapter {
                 event.consume();
                 return;
             }
+            //Se guarda temporalmente el contador para actualizarlo despues
+            activeCountLanbel = countLabel;
+
             Dragboard db = clone.startDragAndDrop(TransferMode.MOVE);
             ClipboardContent content = new ClipboardContent();
             content.putString(type);
@@ -149,17 +180,12 @@ public class GameController extends NavigationAdapter {
             WritableImage snapshot = preview.snapshot(new SnapshotParameters(), null);
             db.setDragView(snapshot);
 
-            // Actualizar contador
-            countLabel.setText(String.valueOf(currentCount - 1));
-
-            // Actualizar stock interno
-            shipCounts.put(type, currentCount - 1);
-
             event.consume();
         });
         shipBox.getChildren().add(clone);
         shipSelectionArea.getChildren().add(shipBox);
     }
+
     private StackPane getCellPaneAt(int row, int col) {
         for (Node n : gridBoard.getChildren()) {
             int rowIndex = GridPane.getRowIndex(n) == null ? 0 : GridPane.getRowIndex(n);
@@ -169,5 +195,16 @@ public class GameController extends NavigationAdapter {
             }
         }
         return null;
+    }
+
+    //HU-1 Mostrar mensaje de error si no se puede colocar el barco
+    private void showFloatingMessage(String message) {
+        textFloat.setText(message);
+        textFloat.setOpacity(1);
+
+        FadeTransition fade = new FadeTransition(Duration.seconds(3), textFloat);
+        fade.setFromValue(1.0);
+        fade.setToValue(0.0);
+        fade.play();
     }
 }
