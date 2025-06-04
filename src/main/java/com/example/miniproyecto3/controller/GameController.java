@@ -38,6 +38,9 @@ public class GameController extends NavigationAdapter {
     //Variable que almacena el contador del barco actualmente siendo arrastrado
     private Label activeCountLanbel = null;
 
+    //Variable para manejar la seleccion por click
+    private String selectedShipType = null;
+
     @FXML
     public void initialize() {
         // Inicializar contadores
@@ -124,6 +127,56 @@ public class GameController extends NavigationAdapter {
                     e.setDropCompleted(success);
                     e.consume();
                 });
+                //Permitir colocar barcos con click si hay uno seleccionado
+                cell.setOnMouseClicked(e -> {
+                    if (selectedShipType == null) {
+                        showFloatingMessage("Selecciona un barco antes de colocarlo");
+                        return;
+                    }
+
+
+                    Ship ship = createShipFromString(selectedShipType);
+                    if (ship == null) {
+                        showFloatingMessage("Tipo de barco inválido");
+                        return;
+                    }
+
+                    int size = ship.getSize();
+                    Integer rowIdx = GridPane.getRowIndex(cell);
+                    Integer colIdx = GridPane.getColumnIndex(cell);
+                    int row0 = rowIdx == null ? 0 : rowIdx;
+                    int col0 = colIdx == null ? 0 : colIdx;
+
+                    //Validar espacio disponible
+                    if (col0 + size <= 10) {
+                        boolean spaceAvailable = true;
+                        for (int i = 0; i < size; i++) {
+                            StackPane target = getCellPaneAt(row0, col0 + i);
+                            if (target.getChildren().size() > 1) {
+                                spaceAvailable = false;
+                                break;
+                            }
+                        }
+                        if (spaceAvailable) {
+                            for (int i = 0; i < size; i++) {
+                                StackPane target = getCellPaneAt(row0, col0 + i);
+                                Rectangle part = new Rectangle(30, 30, ship.getParts()[i].getFill());
+                                part.setStroke(Color.BLACK);
+                                target.getChildren().add(part);
+                            }
+                            //Actualizar contador
+                            int currentCount = shipCounts.get(selectedShipType);
+                            if (currentCount > 0) {
+                                shipCounts.put(selectedShipType, currentCount - 1);
+                                updateLabelCount(selectedShipType, currentCount - 1);
+                            }
+                        } else {
+                            showFloatingMessage("Inválido: Espacio ocupado");
+                        }
+                    } else {
+                        showFloatingMessage("Inválido: El barco se sale del tablero");
+                    }
+            });
                 gridBoard.add(cell, col, row);
             }
         }
@@ -150,7 +203,7 @@ public class GameController extends NavigationAdapter {
         HBox shipBox = new HBox(5);
         shipBox.setUserData(type);
 
-        // Label con contador
+        //Label con contador
         Label countLabel = new Label(shipCounts.get(type).toString());
         countLabel.setUserData("label");
         shipBox.getChildren().add(countLabel);
@@ -159,10 +212,46 @@ public class GameController extends NavigationAdapter {
         clone.setStroke(Color.BLACK);
         clone.setUserData(type);
 
+        //Selección de barco por clic
+        clone.setOnMouseClicked(e -> {
+            int currentCount = Integer.parseInt(countLabel.getText());
+            if (currentCount <= 0) {
+                showFloatingMessage("No quedan barcos de este tipo");
+                e.consume();
+                return;
+            }
+
+            if (selectedShipType != null && selectedShipType.equals(type)) {
+                // Deseleccionar si ya estaba seleccionado
+                selectedShipType = null;
+                clone.setStroke(Color.BLACK);
+                clone.setStrokeWidth(1);
+            } else {
+                // Deseleccionar todos los demás barcos
+                for (Node node : shipSelectionArea.getChildren()) {
+                    if (node instanceof HBox hbox) {
+                        for (Node child : hbox.getChildren()) {
+                            if (child instanceof Rectangle rect) {
+                                rect.setStroke(Color.BLACK);
+                                rect.setStrokeWidth(1);
+                            }
+                        }
+                    }
+                }
+                // Seleccionar este barco
+                selectedShipType = type;
+                clone.setStroke(Color.DEEPSKYBLUE);
+                clone.setStrokeWidth(3);
+            }
+
+            e.consume();
+        });
+
+
         clone.setOnDragDetected(event -> {
             int currentCount = Integer.parseInt(countLabel.getText());
 
-            // No permitir arrastrar si no quedan barcos
+            //No permitir arrastrar si no quedan barcos
             if (currentCount <= 0) {
                 event.consume();
                 return;
@@ -175,7 +264,7 @@ public class GameController extends NavigationAdapter {
             content.putString(type);
             db.setContent(content);
 
-            // Crear miniatura
+            //Crear miniatura
             Rectangle preview = new Rectangle(30, 30, (Color) clone.getFill());
             WritableImage snapshot = preview.snapshot(new SnapshotParameters(), null);
             db.setDragView(snapshot);
@@ -188,10 +277,12 @@ public class GameController extends NavigationAdapter {
 
     private StackPane getCellPaneAt(int row, int col) {
         for (Node n : gridBoard.getChildren()) {
+            if (n instanceof StackPane) {
             int rowIndex = GridPane.getRowIndex(n) == null ? 0 : GridPane.getRowIndex(n);
             int colIndex = GridPane.getColumnIndex(n) == null ? 0 : GridPane.getColumnIndex(n);
             if (rowIndex == row && colIndex == col) {
                 return (StackPane) n;
+            }
             }
         }
         return null;
@@ -206,5 +297,19 @@ public class GameController extends NavigationAdapter {
         fade.setFromValue(1.0);
         fade.setToValue(0.0);
         fade.play();
+    }
+
+    //Contador Visual cuando se coloca un barco por click
+    private void updateLabelCount(String type, int newCount) {
+        for (Node node : shipSelectionArea.getChildren()) {
+            if (node instanceof HBox hbox && hbox.getUserData().equals(type)) {
+                for (Node child : hbox.getChildren()) {
+                    if (child instanceof Label label && "label".equals(label.getUserData())) {
+                        label.setText(String.valueOf(newCount));
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
