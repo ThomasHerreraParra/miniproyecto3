@@ -34,7 +34,7 @@ public class GameController extends NavigationAdapter {
     private Label textFloat; // Referencia al mensaje flotante en la interfaz
 
     // Stock de barcos por tipo
-    private Map<String, Integer> shipCounts = new HashMap<>();
+    private final Map<String, Integer> shipCounts = new HashMap<>();
 
     //Variable que almacena el contador del barco actualmente siendo arrastrado
     private Label activeCountLanbel = null;
@@ -125,10 +125,10 @@ public class GameController extends NavigationAdapter {
                                     StackPane target = getCellPaneAt(row0, col0 + i);
                                     Rectangle part = new Rectangle(30, 30, ship.getParts()[i].getFill());
                                     part.setStroke(Color.BLACK);
-                                    part.setUserData(null); // importante para marcarlo como real y no "preview"
+                                    part.setUserData("real"); // importante para marcarlo como real y no "preview"
                                     target.getChildren().add(part);
                                 }
-                                //Se actualiza el contador solo si se coloca correctamente el narco
+                                //Se actualiza el contador solo si se coloca correctamente el barco
                             if (activeCountLanbel != null) {
                                 int currentCount = Integer.parseInt(activeCountLanbel.getText());
                                 activeCountLanbel.setText(String.valueOf(currentCount - 1));
@@ -155,6 +155,7 @@ public class GameController extends NavigationAdapter {
                             case LEFT  -> currentDirection = Direction.UP;
                             case UP    -> currentDirection = Direction.RIGHT;
                         }
+                        previewShipPlacement(cell);
                         showFloatingMessage("Dirección actual: " + currentDirection);
                         return;
                     }
@@ -164,6 +165,12 @@ public class GameController extends NavigationAdapter {
 
                     if (selectedShipType == null) {
                         showFloatingMessage("Selecciona un barco antes de colocarlo");
+                        return;
+                    }
+
+                    int currentCount = shipCounts.getOrDefault(selectedShipType, 0);
+                    if (currentCount <= 0) {
+                        showFloatingMessage("No quedan barcos de este tipo");
                         return;
                     }
 
@@ -197,7 +204,7 @@ public class GameController extends NavigationAdapter {
 
                         StackPane target = getCellPaneAt(r, c);
                         if (target == null) {
-                            canPlace = false;
+                            canPlace = true;
                             break;
                         }
                         // Verifica si hay un barco real (ignorando las sombras "preview")
@@ -205,7 +212,7 @@ public class GameController extends NavigationAdapter {
                                 .anyMatch(n -> {
                                     if (n instanceof Rectangle rect) {
                                         Object data = rect.getUserData();
-                                        return data == null || !"preview".equals(data);
+                                        return "real".equals(data);
                                     }
                                     return true; // cualquier otro tipo de nodo se considera "ocupado"
                                 });
@@ -227,11 +234,12 @@ public class GameController extends NavigationAdapter {
                             StackPane target = getCellPaneAt(r, c);
                             Rectangle part = new Rectangle(30, 30, ship.getParts()[i].getFill());
                             part.setStroke(Color.BLACK);
+                            part.setUserData("real");
                             target.getChildren().add(part);
                         }
 
                         // Actualiza contador
-                        int currentCount = shipCounts.get(selectedShipType);
+                        currentCount = shipCounts.get(selectedShipType);
                         if (currentCount > 0) {
                             shipCounts.put(selectedShipType, currentCount - 1);
                             updateLabelCount(selectedShipType, currentCount - 1);
@@ -240,53 +248,67 @@ public class GameController extends NavigationAdapter {
                         showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
                     }
                 });
-                gridBoard.add(cell, col, row);
+                // Actualizar sombra al mover el mouse
+                cell.setOnMouseMoved(e -> previewShipPlacement(cell));
 
-                // Sombra previa al pasar el mouse
-                cell.setOnMouseEntered(e -> {
-                    if (selectedShipType == null) return;
+                // También cuando entra el mouse
+                cell.setOnMouseEntered(e -> previewShipPlacement(cell));
 
-                    Ship ship = createShipFromString(selectedShipType);
-                    if (ship == null) return;
-
-                    int size = ship.getSize();
-                    Integer rowIdx = GridPane.getRowIndex(cell);
-                    Integer colIdx = GridPane.getColumnIndex(cell);
-                    int row0 = rowIdx == null ? 0 : rowIdx;
-                    int col0 = colIdx == null ? 0 : colIdx;
-
-                    for (int i = 0; i < size; i++) {
-                        int r = row0, c = col0;
-
-                        switch (currentDirection) {
-                            case RIGHT -> c += i;
-                            case LEFT  -> c -= i;
-                            case DOWN  -> r += i;
-                            case UP    -> r -= i;
-                        }
-
-                        if (r < 0 || r >= 10 || c < 0 || c >= 10) continue;
-
-                        StackPane target = getCellPaneAt(r, c);
-                        Rectangle shadow = new Rectangle(30, 30, Color.LIGHTGRAY);
-                        shadow.setOpacity(0.4);
-                        shadow.setUserData("preview");
-                        target.getChildren().add(shadow);
-                    }
-                });
-
-                // Eliminar la sombra al salir del mouse
+                // Limpiar sombra al salir
                 cell.setOnMouseExited(e -> {
                     for (Node node : gridBoard.getChildren()) {
                         if (node instanceof StackPane stack) {
                             stack.getChildren().removeIf(child ->
                                     child instanceof Rectangle rect &&
-                                            "preview".equals(rect.getUserData())
-                            );
+                                            "preview".equals(rect.getUserData()));
                         }
                     }
                 });
 
+                gridBoard.add(cell, col, row);
+            }
+        }
+    }
+
+    private void previewShipPlacement(StackPane cell) {
+        // Eliminar sombras previas
+        for (Node node : gridBoard.getChildren()) {
+            if (node instanceof StackPane stack) {
+                stack.getChildren().removeIf(child ->
+                        child instanceof Rectangle rect &&
+                                "preview".equals(rect.getUserData()));
+            }
+        }
+
+        if (selectedShipType == null) return;
+
+        Ship ship = createShipFromString(selectedShipType);
+        if (ship == null) return;
+
+        int size = ship.getSize();
+        Integer rowIdx = GridPane.getRowIndex(cell);
+        Integer colIdx = GridPane.getColumnIndex(cell);
+        int row0 = rowIdx == null ? 0 : rowIdx;
+        int col0 = colIdx == null ? 0 : colIdx;
+
+        for (int i = 0; i < size; i++) {
+            int r = row0, c = col0;
+
+            switch (currentDirection) {
+                case RIGHT -> c += i;
+                case LEFT  -> c -= i;
+                case DOWN  -> r += i;
+                case UP    -> r -= i;
+            }
+
+            if (r < 0 || r >= 10 || c < 0 || c >= 10) continue;
+
+            StackPane target = getCellPaneAt(r, c);
+            if (target != null) {
+                Rectangle shadow = new Rectangle(30, 30, Color.LIGHTGRAY);
+                shadow.setOpacity(0.4);
+                shadow.setUserData("preview");
+                target.getChildren().add(shadow);
             }
         }
     }
