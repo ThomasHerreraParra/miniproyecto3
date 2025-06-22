@@ -1,11 +1,13 @@
 package com.example.miniproyecto3.controller;
 
+import com.example.miniproyecto3.storage.SavedShip;
 import javafx.animation.FadeTransition;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.SnapshotParameters;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.ClipboardContent;
@@ -19,29 +21,35 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import com.example.miniproyecto3.ships.*;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javafx.scene.input.MouseButton;
 
 public class GameController extends NavigationAdapter {
 
-    @FXML
-    private GridPane gridBoard;
-
-    @FXML
-    private GridPane enemyBoard;
-
-    @FXML
-    private VBox shipSelectionArea;
-
-    @FXML
-    private Label textFloat; // Referencia al mensaje flotante en la interfaz
-
+    @FXML private GridPane gridBoard;
+    @FXML private GridPane enemyBoard;
+    @FXML private VBox shipSelectionArea;
+    @FXML private Label textFloat; // Referencia al mensaje flotante en la interfaz
     // Stock de barcos por tipo
     private final Map<String, Integer> shipCounts = new HashMap<>();
-
     //Variable que almacena el contador del barco actualmente siendo arrastrado
     private Label activeCountLanbel = null;
+    //Costantes para guardar archivos
+    private static final String PLAYER_SAVE_PATH = "player_board.txt";
+    private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
+    //Lista donde se ira almacenando los barcos del jugador
+    private final List<SavedShip> playerShips = new ArrayList<>();
+    private final List<SavedShip> enemyShips  = new ArrayList<>();
 
     //Variable para manejar la seleccion por click
     private String selectedShipType = null;
@@ -62,6 +70,33 @@ public class GameController extends NavigationAdapter {
         createGrid();
         createGridEnemy();
         loadShips();
+
+        //Si el archivo guardado existe entonces carga los tableros cargados
+        Path playerFile = Paths.get(PLAYER_SAVE_PATH);
+        Path enemyFile  = Paths.get(ENEMY_SAVE_PATH);
+
+        /* 1️⃣ Pintamos SOLO el tablero del jugador */
+        if (Files.exists(playerFile)) {
+            //Pintar, y ademas obtenemos la lista para ajustar contadores
+            List<SavedShip> alreadyPlaced =
+                    loadBoardFromFile(PLAYER_SAVE_PATH, gridBoard, true);   // paint = true
+            playerShips.addAll(alreadyPlaced);
+
+            //Restar del stock todos los barcos que ya estaban colocados
+            for (SavedShip s : alreadyPlaced) {
+                shipCounts.put(s.getType(), shipCounts.get(s.getType()) - 1);
+            }
+            refreshAllCounters();
+
+            //Deshabilitamos seleccion si ya no queda ninguno
+            boolean allPlaced = shipCounts.values().stream().allMatch(v -> v == 0);
+            shipSelectionArea.setDisable(allPlaced);
+        }
+
+        /* 2️⃣ Cargamos PERO NO pintamos el tablero enemigo */
+        if (Files.exists(enemyFile)) {
+            enemyShips.addAll(loadBoardFromFile(ENEMY_SAVE_PATH, null, false)); // paint=false
+        }
     }
 
     public void handleBack(ActionEvent event) {
@@ -71,6 +106,132 @@ public class GameController extends NavigationAdapter {
     public void handlenemy(ActionEvent event) {
         goTo("/com/example/miniproyecto3/enemy-view.fxml", (Node) event.getSource());
     }
+
+    @FXML
+    public void handleNewGame(ActionEvent event) {
+        // 1. Borrar archivos si existen
+        try {
+            Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
+            Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // 2. Limpiar listas y reiniciar lógica interna
+        playerShips.clear();
+        shipCounts.put("fragata", 4);
+        shipCounts.put("submarino", 2);
+        shipCounts.put("destructor", 3);
+        shipCounts.put("portaviones", 1);
+        selectedShipType = null;
+
+        // 3. Limpiar tablero y volver a crear grillas
+        gridBoard.getChildren().clear();
+        enemyBoard.getChildren().clear();
+        createGrid();
+        createGridEnemy();
+
+        // 4. Volver a cargar los barcos
+        shipSelectionArea.getChildren().clear();
+        loadShips();
+
+        // 5. Habilitar selección de barcos
+        shipSelectionArea.setDisable(false);
+
+        // 6. Generar nuevo tablero enemigo aleatorio
+        EnemyController.generateAndSaveEnemyBoard();
+    }
+
+
+
+
+
+    // Nuevo metodo loadBoardFromFile con flag paint
+    private List<SavedShip> loadBoardFromFile(String path, GridPane target, boolean paint) {
+        List<SavedShip> ships = new ArrayList<>();
+
+        try (BufferedReader br = Files.newBufferedReader(Paths.get(path))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] p = line.split(",");
+                if (p.length != 4) continue;
+
+                String  type   = p[0];
+                int     row    = Integer.parseInt(p[1]);
+                int     col    = Integer.parseInt(p[2]);
+                boolean horiz  = "H".equalsIgnoreCase(p[3]);
+
+                /* Guardamos en memoria */
+                ships.add(new SavedShip(type, row, col, horiz));
+
+                /* Dibujamos solo si paint = true */
+                if (!paint || target == null) continue;
+
+                Ship model = createShipFromString(type);
+                if (model == null) continue;
+
+                int size  = model.getSize();
+                Color color = (Color) model.getParts()[0].getFill();
+
+                for (int i = 0; i < size; i++) {
+                    int r = row + (horiz ? 0 : i);
+                    int c = col + (horiz ? i : 0);
+
+                    StackPane cell = getCellPaneAt(target, r, c);
+                    if (cell == null) continue;
+
+                    Rectangle part = new Rectangle(30,30,color);
+                    part.setStroke(Color.BLACK);
+                    part.setUserData("real");
+                    cell.getChildren().add(part);
+                }
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Error loading board from " + path).showAndWait();
+        }
+        return ships;
+    }
+
+
+
+    //Metodo para guardar el tablero del jugador
+    private void savePlayerBoard() {
+        try (BufferedWriter w = Files.newBufferedWriter(Paths.get(PLAYER_SAVE_PATH))) {
+            for (SavedShip s : playerShips) {
+                w.write(s.toString());
+                w.newLine();
+            }
+            System.out.println("Player board saved → " + PLAYER_SAVE_PATH);
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    //Ayudante del metodo de arrriba
+    private SavedShip toSavedShip(String type, int rowClick, int colClick, int size, Direction dir) {
+        boolean horizontal = (dir == Direction.RIGHT || dir == Direction.LEFT);
+        int startRow = (dir == Direction.UP)    ? rowClick - size + 1 : rowClick;
+        int startCol = (dir == Direction.LEFT)  ? colClick - size + 1 : colClick;
+        return new SavedShip(type, startRow, startCol, horizontal);
+    }
+
+
+    private StackPane getCellPaneAt(GridPane board, int row, int col) {
+        for (Node n : board.getChildren()) {
+            if (n instanceof StackPane sp) {
+                Integer r = GridPane.getRowIndex(sp);
+                Integer c = GridPane.getColumnIndex(sp);
+                if (r != null && c != null && r == row + 1 && c == col + 1) {
+                    return sp;
+                }
+            }
+        }
+        return null;
+    }
+
+    public GridPane getPlayerBoard() { return gridBoard; }
+    public GridPane getEnemyBoard()  { return enemyBoard; }
 
     private void createGrid() {
         int numRows = 10;
@@ -180,6 +341,10 @@ public class GameController extends NavigationAdapter {
                                 activeCountLanbel.setText(String.valueOf(currentCount - 1));
                                 shipCounts.put(type, currentCount - 1);
                             }
+
+                            SavedShip ss = toSavedShip(type, row0, col0, size, currentDirection);
+                            playerShips.add(ss);
+                            savePlayerBoard();
                             success = true;
                         } else {
                             showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
@@ -239,28 +404,20 @@ public class GameController extends NavigationAdapter {
                         }
 
                         if (r < 0 || r >= 10 || c < 0 || c >= 10) {
-                            canPlace = false;
-                            break;
+                            canPlace = false; break;
                         }
 
                         StackPane target = getCellPaneAt(r, c);
-                        if (target == null) {
-                            canPlace = false;
-                            break;
-                        }
+                        if (target == null) {canPlace = false;break;}
 
-                        boolean ocupado = target.getChildren().stream()
-                                .anyMatch(n -> {
+                        boolean ocupado = target.getChildren().stream().anyMatch(n -> {
                                     if (n instanceof Rectangle rect) {
                                         Object data = rect.getUserData();
                                         return "real".equals(data);
                                     }
                                     return true;
                                 });
-                        if (ocupado) {
-                            canPlace = false;
-                            break;
-                        }
+                        if (ocupado) {canPlace = false;break;}
                     }
 
                     if (canPlace) {
@@ -280,11 +437,15 @@ public class GameController extends NavigationAdapter {
                             target.getChildren().add(part);
                         }
 
-                        currentCount = shipCounts.get(selectedShipType);
                         if (currentCount > 0) {
                             shipCounts.put(selectedShipType, currentCount - 1);
                             updateLabelCount(selectedShipType, currentCount - 1);
                         }
+
+                        //Guardar en playerShips y en el archivo
+                        SavedShip ss = toSavedShip(selectedShipType, row0, col0, size, currentDirection);
+                        playerShips.add(ss);
+                        savePlayerBoard();
                     } else {
                         showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
                     }
@@ -359,12 +520,9 @@ public class GameController extends NavigationAdapter {
 
     private void previewShipPlacement(StackPane cell) {
         clearPreviews();
-
         if (selectedShipType == null) return;
-
         Ship ship = createShipFromString(selectedShipType);
         if (ship == null) return;
-
         int size = ship.getSize();
         Integer rowIdx = GridPane.getRowIndex(cell);
         Integer colIdx = GridPane.getColumnIndex(cell);
@@ -382,7 +540,6 @@ public class GameController extends NavigationAdapter {
             }
 
             if (r < 0 || r >= 10 || c < 0 || c >= 10) continue;
-
             StackPane target = getCellPaneAt(r, c);
             if (target != null) {
                 Rectangle shadow = new Rectangle(30, 30, Color.LIGHTGRAY);
@@ -470,7 +627,6 @@ public class GameController extends NavigationAdapter {
             }
             //Se guarda temporalmente el contador para actualizarlo despues
             activeCountLanbel = countLabel;
-
             Dragboard db = clone.startDragAndDrop(TransferMode.MOVE);
             ClipboardContent content = new ClipboardContent();
             content.putString(type);
@@ -524,4 +680,21 @@ public class GameController extends NavigationAdapter {
             }
         }
     }
+
+    // --- NEW ---
+    private void refreshAllCounters() {
+        for (Node node : shipSelectionArea.getChildren()) {
+            if (node instanceof HBox hbox) {
+                String type = (String) hbox.getUserData();
+                for (Node child : hbox.getChildren()) {
+                    if (child instanceof Label lbl && "label".equals(lbl.getUserData())) {
+                        lbl.setText(String.valueOf(shipCounts.get(type)));
+                    }
+                }
+            }
+        }
+    }
+
+
+
 }
