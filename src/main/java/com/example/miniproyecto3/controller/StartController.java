@@ -14,7 +14,7 @@ public class StartController extends NavigationAdapter {
     private javafx.scene.control.Button btnNewGame;
     private static final String PLAYER_SAVE_PATH = "player_board.txt";
     private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
-
+    private static final String SHOTS_SAVE_PATH = "shots.txt";
     //Este metodo se ejecuta cada vez que vuelves al menú.  Habilita “Nueva Partida” solamente
     // si EXISTEN los dos archivos .txt de guardado.
     @FXML
@@ -65,6 +65,7 @@ public class StartController extends NavigationAdapter {
         try {
             Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
             Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
+            Files.deleteIfExists(Paths.get(SHOTS_SAVE_PATH));
         } catch (Exception ex) {
             new Alert(Alert.AlertType.ERROR, "Error deleting save files").showAndWait();
             ex.printStackTrace();
