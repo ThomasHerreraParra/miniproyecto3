@@ -4,28 +4,93 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class StartController extends NavigationAdapter {
-    @FXML
-    private javafx.scene.control.Button btnNewGame;
+
+    @FXML private Button btnPlay;
+    @FXML private Button btnContinue;
+    @FXML private Button btnNewGame;
+    @FXML private Button btnInstructions;
+
     private static final String PLAYER_SAVE_PATH = "player_board.txt";
     private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
     private static final String SHOTS_SAVE_PATH = "shots.txt";
-    //Este metodo se ejecuta cada vez que vuelves al menú.  Habilita “Nueva Partida” solamente
-    // si EXISTEN los dos archivos .txt de guardado.
+
+    /** Indica si ya se pulsó “Jugar” ó “Nueva partida” en esta sesión */
+    private static boolean hasOngoingGame = false;
+
     @FXML
     private void initialize() {
-        boolean saved = Files.exists(Paths.get(PLAYER_SAVE_PATH)) &&
-                Files.exists(Paths.get(ENEMY_SAVE_PATH));
-        btnNewGame.setDisable(!saved);          // habilita si hay partida guardada
+        boolean savedOnDisk = Files.exists(Paths.get(PLAYER_SAVE_PATH))
+                && Files.exists(Paths.get(ENEMY_SAVE_PATH));
+        // habilita “Continuar” y “Nueva partida” solo si hay guardado en disco o sesión activa
+        btnContinue.setDisable(!(savedOnDisk || hasOngoingGame));
+        btnNewGame .setDisable(!(savedOnDisk || hasOngoingGame));
+        // “Jugar” e “Instrucciones” siempre disponibles
+        btnPlay.setDisable(hasOngoingGame);
+        btnInstructions.setDisable(false);
     }
+
     @FXML
     private void onPlayClicked(ActionEvent event) {
-        btnNewGame.setDisable(false);  //Habilita el botón al hacer clic en "Jugar"
+        //borrar cualquier archivo viejo (tableros o disparos)
+        try {
+            Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
+            Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
+            Files.deleteIfExists(Paths.get(SHOTS_SAVE_PATH));
+        } catch (IOException ex) {
+            new Alert(Alert.AlertType.ERROR, "Error clearing previous game data").showAndWait();
+            ex.printStackTrace();
+            return;
+        }
+
+        //generar un NUEVO tablero enemigo
+        EnemyController.generateAndSaveEnemyBoard();
+
+
+        //Marcamos que hay partida en memoria y vamos a la vista
+        hasOngoingGame = true;
+        goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
+    }
+
+    @FXML
+    private void handleContinue(ActionEvent event) {
+        if (hasOngoingGame) {
+            // vuelve a la partida en memoria
+            goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
+            return;
+        }
+        // si no hay en memoria, intenta cargar desde disco
+        Path p1 = Paths.get(PLAYER_SAVE_PATH);
+        Path p2 = Paths.get(ENEMY_SAVE_PATH);
+        if (Files.exists(p1) && Files.exists(p2)) {
+            goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
+        } else {
+            new Alert(Alert.AlertType.WARNING, "No saved game found.").showAndWait();
+        }
+    }
+
+    @FXML
+    private void handleNewGame(ActionEvent event) {
+        // eliminar guardados en disco
+        try {
+            Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
+            Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
+            Files.deleteIfExists(Paths.get(SHOTS_SAVE_PATH));
+        } catch (IOException ex) {
+            new Alert(Alert.AlertType.ERROR, "Error deleting save files").showAndWait();
+            ex.printStackTrace();
+            return;
+        }
+        // generar nuevo tablero enemigo
+        EnemyController.generateAndSaveEnemyBoard();
+        hasOngoingGame = true;
         goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
     }
 
@@ -35,49 +100,7 @@ public class StartController extends NavigationAdapter {
     }
 
     @FXML
-    private void handleContinue(ActionEvent event) {
-        Path enemyPath = Paths.get("enemy_board.txt");
-        Path playerPath = Paths.get("player_board.txt");
-
-        if (Files.exists(enemyPath) && Files.exists(playerPath)) {
-            goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
-        } else {
-            Alert alert = new Alert(Alert.AlertType.WARNING);
-            alert.setTitle("No Saved Game");
-            alert.setHeaderText(null);
-            alert.setContentText("No saved game found.");
-            alert.showAndWait();
-        }
-    }
-
-
-    @FXML
     private void onExitClicked(ActionEvent event) {
-        System.out.println("Saliendo");
         System.exit(0);
     }
-
-    //Nuevo Metodo
-    @FXML
-    private void handleNewGame(ActionEvent event) {
-
-        // 1) borrar archivos guardados, si existen
-        try {
-            Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
-            Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
-            Files.deleteIfExists(Paths.get(SHOTS_SAVE_PATH));
-        } catch (Exception ex) {
-            new Alert(Alert.AlertType.ERROR, "Error deleting save files").showAndWait();
-            ex.printStackTrace();
-            return;
-        }
-
-        // 2) generar un NUEVO tablero enemigo y guardarlo
-        EnemyController.generateAndSaveEnemyBoard();
-
-        // 3) ir a la vista del juego; GameController se encargará de inicializar todo
-        goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
-    }
 }
-
-

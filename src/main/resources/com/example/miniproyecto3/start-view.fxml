@@ -12,9 +12,9 @@
             onAction="#handleNewGame"
             disable="true"
     />
-    <Button onAction="#onPlayClicked" text="Jugar" />
+    <Button fx:id="btnPlay" onAction="#onPlayClicked" text="Jugar" />
     <!-- NUEVO BOTÓN CONTINUAR -->
-    <Button fx:id="continueButton" mnemonicParsing="false" text="Continuar" onAction="#handleContinue"/>
-    <Button onAction="#onInstructionsClicked" text="Instrucciones" />
+    <Button fx:id="btnContinue" mnemonicParsing="false" text="Continuar" onAction="#handleContinue"/>
+    <Button fx:id="btnInstructions" onAction="#onInstructionsClicked" text="Instrucciones" />
     <Button onAction="#onExitClicked" text="Salir" />
 </VBox>
