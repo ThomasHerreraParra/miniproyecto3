@@ -44,6 +44,12 @@
             <!-- VBox para Tablero Principal (ataques) -->
             <VBox spacing="5" alignment="CENTER">
                 <Label text="Tablero Principal" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+
+                <!-- === Nuevo Label para el turno === -->
+                <Label fx:id="lblTurn"
+                       text="Preparando partida..."
+                       style="-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: darkgreen;"/>
+
                 <GridPane fx:id="enemyBoard"
                           gridLinesVisible="true"
                           style="-fx-background-color: deepskyblue;"
