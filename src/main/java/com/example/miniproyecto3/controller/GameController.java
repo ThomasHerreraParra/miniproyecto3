@@ -53,7 +53,9 @@ public class GameController extends NavigationAdapter {
     private final Map<String, Integer> enemyRemainingParts = new HashMap<>();  // shipId → partes vivas
     private final Set<String>           firedCells         = new HashSet<>(); // "r,c" ya disparado
     private int                         enemyShipsAlive    = 0;
-
+    private boolean allShipsPlaced() {
+        return shipCounts.values().stream().allMatch(count -> count == 0);
+    }
 
     @FXML
     public void initialize() {
@@ -351,7 +353,10 @@ public class GameController extends NavigationAdapter {
                     if (e.getButton() != MouseButton.PRIMARY) return;
 
                     if (selectedShipType == null) {
-                        showFloatingMessage("Selecciona un barco antes de colocarlo");
+                        boolean shipsLefts = shipCounts.values().stream().anyMatch(c -> c > 0);
+                        if (shipsLefts) {
+                            showFloatingMessage("Selecciona un barco antes de colocarlo");
+                        }
                         return;
                     }
 
@@ -490,6 +495,17 @@ public class GameController extends NavigationAdapter {
 
     //Encargado de pum pum
     private void handleShot(StackPane cell) {
+        // ❌ Impedir disparos si no se han colocado todos los barcos
+        if (!allShipsPlaced()) {
+            try {
+                String nick = Files.readString(Paths.get("nickname.txt")).trim();
+                showFloatingMessage("Primero ponga todos los barcos, capitan " + nick);
+            } catch (IOException e) {
+                showFloatingMessage("Primero ponga todos los barcos, capitán");
+            }
+            return;
+        }
+
         // Coordenadas 0-based
         int row = GridPane.getRowIndex(cell) - 1;
         int col = GridPane.getColumnIndex(cell) - 1;

@@ -51,12 +51,23 @@ public class StartController extends NavigationAdapter {
 
     @FXML
     private void initialize() {
+        if (!hasOngoingGame) {
+            // Si no hay partida en memoria, borra archivos viejos al iniciar
+            try {
+                Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
+                Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
+                Files.deleteIfExists(Paths.get(SHOTS_SAVE_PATH));
+            } catch (IOException ex) {
+                new Alert(Alert.AlertType.ERROR, "Error limpiando datos antiguos").showAndWait();
+                ex.printStackTrace();
+            }
+        }
+
         boolean savedOnDisk = Files.exists(Paths.get(PLAYER_SAVE_PATH))
                 && Files.exists(Paths.get(ENEMY_SAVE_PATH));
-        // habilita “Continuar” y “Nueva partida” solo si hay guardado en disco o sesión activa
+
         btnContinue.setDisable(!(savedOnDisk || hasOngoingGame));
-        btnNewGame .setDisable(!(savedOnDisk || hasOngoingGame));
-        // “Jugar” e “Instrucciones” siempre disponibles
+        btnNewGame.setDisable(!(savedOnDisk || hasOngoingGame));
         btnPlay.setDisable(hasOngoingGame);
         btnInstructions.setDisable(false);
     }
