@@ -38,6 +38,7 @@ public class GameController extends NavigationAdapter {
     @FXML private GridPane enemyBoard;
     @FXML private VBox shipSelectionArea;
     @FXML private Label textFloat; // Referencia al mensaje flotante en la interfaz
+    @FXML private Label lblWelcome;
     private final Map<String, Integer> shipCounts = new HashMap<>(); // Stock de barcos por tipo
     private Label activeCountLanbel = null;     //Variable que almacena el contador del barco actualmente siendo arrastrado
     private static final String SHOTS_SAVE_PATH = "shots.txt"; //Archivo plano para guardar los disparos
@@ -56,6 +57,18 @@ public class GameController extends NavigationAdapter {
 
     @FXML
     public void initialize() {
+        //Mostrar nickname
+        try {
+            Path nickPath = Paths.get("nickname.txt");
+            if (Files.exists(nickPath)) {
+                String nick = Files.readString(nickPath).trim();
+                lblWelcome.setText("Bienvenido, capitán " + nick);
+            } else {
+                lblWelcome.setText("Bienvenido, capitán");
+            }
+        } catch (IOException e) {
+            lblWelcome.setText("Bienvenido, capitán");
+        }
         firedCells.clear();
         enemyRemainingParts.clear();
         enemyShipsAlive = 0;

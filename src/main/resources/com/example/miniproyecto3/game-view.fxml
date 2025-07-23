@@ -9,7 +9,13 @@
 <StackPane xmlns:fx="http://javafx.com/fxml"
            fx:controller="com.example.miniproyecto3.controller.GameController"
            style="-fx-background-color: #f0f0f0;">
-
+    <!-- ✅ Mensaje de bienvenida -->
+    <Label fx:id="lblWelcome"
+           text=""
+           style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: navy;"
+           StackPane.alignment="TOP_CENTER"
+           translateY="20"
+    />
     <!-- Label para mostrar mensajes flotantes -->
     <Label fx:id="textFloat"
            text=""

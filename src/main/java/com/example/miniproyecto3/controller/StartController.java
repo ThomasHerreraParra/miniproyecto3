@@ -5,7 +5,8 @@ import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-
+import javafx.scene.control.TextInputDialog;
+import java.util.Optional;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,13 +18,36 @@ public class StartController extends NavigationAdapter {
     @FXML private Button btnContinue;
     @FXML private Button btnNewGame;
     @FXML private Button btnInstructions;
-
+    private static final String NICKNAME_PATH = "nickname.txt";
     private static final String PLAYER_SAVE_PATH = "player_board.txt";
     private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
     private static final String SHOTS_SAVE_PATH = "shots.txt";
 
     /** Indica si ya se pulsó “Jugar” ó “Nueva partida” en esta sesión */
     private static boolean hasOngoingGame = false;
+    //Metodo auxiliar para solicitar y guardar el nickname
+    private Optional<String> promptAndSaveNickname() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Ingrese Nickname");
+        dialog.setHeaderText(null);
+        dialog.setContentText("Por favor ingrese su nickname:");
+
+        Optional<String> result = dialog.showAndWait()
+                .map(String::trim)
+                .filter(nick -> !nick.isBlank());
+
+        result.ifPresent(nick -> {
+            try {
+                Files.writeString(Paths.get(NICKNAME_PATH), nick);
+            } catch (IOException e) {
+                new Alert(Alert.AlertType.ERROR,
+                        "No se pudo guardar el nickname").showAndWait();
+            }
+        });
+
+        return result;
+    }
+
 
     @FXML
     private void initialize() {
@@ -39,6 +63,7 @@ public class StartController extends NavigationAdapter {
 
     @FXML
     private void onPlayClicked(ActionEvent event) {
+        if (promptAndSaveNickname().isEmpty()) return;
         //borrar cualquier archivo viejo (tableros o disparos)
         try {
             Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
@@ -50,7 +75,7 @@ public class StartController extends NavigationAdapter {
             return;
         }
 
-        //generar un NUEVO tablero enemigo
+        //generar un nuevo tablero enemigo
         EnemyController.generateAndSaveEnemyBoard();
 
 
@@ -78,6 +103,7 @@ public class StartController extends NavigationAdapter {
 
     @FXML
     private void handleNewGame(ActionEvent event) {
+        if (promptAndSaveNickname().isEmpty()) return;
         // eliminar guardados en disco
         try {
             Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
