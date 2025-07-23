@@ -75,7 +75,7 @@ public class StartController extends NavigationAdapter {
             return;
         }
 
-        //generar un NUEVO tablero enemigo
+        //generar un nuevo tablero enemigo
         EnemyController.generateAndSaveEnemyBoard();
 
 
