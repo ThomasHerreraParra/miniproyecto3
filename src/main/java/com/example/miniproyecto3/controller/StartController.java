@@ -22,6 +22,8 @@ public class StartController extends NavigationAdapter {
     private static final String PLAYER_SAVE_PATH = "player_board.txt";
     private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
     private static final String SHOTS_SAVE_PATH = "shots.txt";
+    private static final String ENEMY_SHOTS_SAVE_PATH = "enemy_shots.txt";  //Disparos hechos hacia el enemigo
+
 
     /** Indica si ya se pulsó “Jugar” ó “Nueva partida” en esta sesión */
     private static boolean hasOngoingGame = false;
@@ -57,6 +59,7 @@ public class StartController extends NavigationAdapter {
                 Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
                 Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
                 Files.deleteIfExists(Paths.get(SHOTS_SAVE_PATH));
+                Files.deleteIfExists(Paths.get(ENEMY_SHOTS_SAVE_PATH));
             } catch (IOException ex) {
                 new Alert(Alert.AlertType.ERROR, "Error limpiando datos antiguos").showAndWait();
                 ex.printStackTrace();
@@ -67,9 +70,9 @@ public class StartController extends NavigationAdapter {
                 && Files.exists(Paths.get(ENEMY_SAVE_PATH));
 
         btnContinue.setDisable(!(savedOnDisk || hasOngoingGame));
-        btnNewGame.setDisable(!(savedOnDisk || hasOngoingGame));
         btnPlay.setDisable(hasOngoingGame);
         btnInstructions.setDisable(false);
+        btnNewGame .setDisable(!(savedOnDisk || hasOngoingGame));
     }
 
     @FXML
@@ -85,6 +88,7 @@ public class StartController extends NavigationAdapter {
             ex.printStackTrace();
             return;
         }
+
 
         //generar un nuevo tablero enemigo
         EnemyController.generateAndSaveEnemyBoard();
@@ -112,6 +116,11 @@ public class StartController extends NavigationAdapter {
         }
     }
 
+    /** Invocado desde GameController para deshabilitar Continuar */
+    public void disableContinueButton() {
+        btnContinue.setDisable(true);
+    }
+
     @FXML
     private void handleNewGame(ActionEvent event) {
         if (promptAndSaveNickname().isEmpty()) return;
@@ -120,6 +129,7 @@ public class StartController extends NavigationAdapter {
             Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
             Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
             Files.deleteIfExists(Paths.get(SHOTS_SAVE_PATH));
+            Files.deleteIfExists(Paths.get(ENEMY_SHOTS_SAVE_PATH));
         } catch (IOException ex) {
             new Alert(Alert.AlertType.ERROR, "Error deleting save files").showAndWait();
             ex.printStackTrace();

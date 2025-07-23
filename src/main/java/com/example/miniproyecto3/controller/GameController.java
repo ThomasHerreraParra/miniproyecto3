@@ -2,6 +2,7 @@ package com.example.miniproyecto3.controller;
 
 import com.example.miniproyecto3.storage.SavedShip;
 import javafx.animation.FadeTransition;
+import javafx.animation.PauseTransition;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
@@ -21,7 +22,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import com.example.miniproyecto3.ships.*;
-
+import com.example.miniproyecto3.controller.StartController;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -29,6 +30,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import javafx.application.Platform;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.scene.control.Button;
+import javafx.geometry.Insets;
 
 import javafx.scene.input.MouseButton;
 
@@ -39,9 +48,18 @@ public class GameController extends NavigationAdapter {
     @FXML private VBox shipSelectionArea;
     @FXML private Label textFloat; // Referencia al mensaje flotante en la interfaz
     @FXML private Label lblWelcome;
+    private boolean playerTurn = false;
+    @FXML private Label lblTurn;
+    // Para los disparos de la IA
+    private final Set<String> firedByEnemy = new HashSet<>();
+// Contador de barcos del jugador (inicialízalo igual que enemyShipsAlive)
+    private int playerShipsAlive;
+
+
     private final Map<String, Integer> shipCounts = new HashMap<>(); // Stock de barcos por tipo
     private Label activeCountLanbel = null;     //Variable que almacena el contador del barco actualmente siendo arrastrado
     private static final String SHOTS_SAVE_PATH = "shots.txt"; //Archivo plano para guardar los disparos
+    private static final String ENEMY_SHOTS_SAVE_PATH = "enemy_shots.txt";  //Disparos hechos hacia el enemigo
     private static final String PLAYER_SAVE_PATH = "player_board.txt"; //Costantes para guardar archivos
     private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
     private final List<SavedShip> playerShips = new ArrayList<>(); //Lista donde se ira almacenando los barcos del jugador
@@ -123,8 +141,36 @@ public class GameController extends NavigationAdapter {
             enemyShipsAlive = enemyRemainingParts.size();
         }
         //Cargamos disparos previos
+        playerShipsAlive = playerShips.size();      // número de barcos colocados
+        if (allShipsPlaced()) {
+            playerTurn = true;
+            updateTurnLabel();
+        }
+
+        // Cargamos disparos previos
         loadShotsFromFile();
+        loadEnemyShotsFromFile();
+
+
+        // Si venimos de una partida guardada ya lista...
+        playerShipsAlive = playerShips.size();
+        if (allShipsPlaced()) {
+            playerTurn = true;
+            updateTurnLabel();
+            shipSelectionArea.setDisable(true);
+        }
     }
+
+    private void updateTurnLabel() {
+        String nick = "capitán";
+        try {
+            nick = "capitán " + Files.readString(Paths.get("nickname.txt")).trim();
+        } catch (IOException e) { /* ignorar */ }
+        lblTurn.setText(playerTurn
+                ? "Es tu turno de disparar, " + nick
+                : "Turno de la máquina...");
+    }
+
 
     public void handleBack(ActionEvent event) {goTo("/com/example/miniproyecto3/start-view.fxml", (Node) event.getSource());}
     public void handlenemy(ActionEvent event) {goTo("/com/example/miniproyecto3/enemy-view.fxml", (Node) event.getSource());}
@@ -327,6 +373,17 @@ public class GameController extends NavigationAdapter {
                             SavedShip ss = toSavedShip(type, row0, col0, size, currentDirection);
                             playerShips.add(ss);
                             savePlayerBoard();
+
+                            // Después de playerShips.add(ss); y savePlayerBoard();
+                            if (allShipsPlaced()) {
+                                // Deshabilita el área de selección
+                                shipSelectionArea.setDisable(true);
+
+                                // Inicializa la vida de tus barcos y arranca el turno
+                                playerShipsAlive = playerShips.size();
+                                playerTurn = true;
+                                updateTurnLabel();
+                            }
                             success = true;
                         } else {
                             showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
@@ -431,6 +488,17 @@ public class GameController extends NavigationAdapter {
                         SavedShip ss = toSavedShip(selectedShipType, row0, col0, size, currentDirection);
                         playerShips.add(ss);
                         savePlayerBoard();
+
+                        // ¡Lanzamos la partida si fue el último barco!
+                        if (allShipsPlaced()) {
+                            shipSelectionArea.setDisable(true);
+                            playerShipsAlive = playerShips.size();
+                            playerTurn = true;
+                            updateTurnLabel();
+                        }
+
+
+
                     } else {
                         showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
                     }
@@ -492,6 +560,74 @@ public class GameController extends NavigationAdapter {
             }
         }
     }
+//-----METODOS DE CHEQUEO DE IMPACTOS Y HUNDIDOS EN EL TABLERO DEL JUGADOR
+
+    /** Devuelve true si la IA ha acertado en (row,col) sobre el jugador */
+    private boolean checkPlayerShipHit(int row, int col) {
+        for (SavedShip s : playerShips) {
+            int size = switch (s.getType()) {
+                case "fragata"    -> 1;
+                case "submarino"  -> 2;
+                case "destructor" -> 3;
+                case "portaviones"-> 4;
+                default           -> 1;
+            };
+            for (int i = 0; i < size; i++) {
+                int r = s.getRow() + (s.isHorizontal() ? 0 : i);
+                int c = s.getCol() + (s.isHorizontal() ? i : 0);
+                if (r == row && c == col) {
+                    // Reducir partes vivas del barco
+                    String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
+                    int rem = enemyRemainingParts.getOrDefault(shipId, size) - 1;
+                    enemyRemainingParts.put(shipId, rem);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Devuelve true si tras este impacto acabamos de hundir el barco al que pertenece (row,col) */
+    private boolean checkIfPlayerShipSunk(int row, int col) {
+        // Busca la SavedShip que incluye (row,col)
+        for (SavedShip s : playerShips) {
+            String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
+            // Si tras restar en checkPlayerShipHit quedó a 0, entonces es hundido
+            if (enemyRemainingParts.getOrDefault(shipId, 1) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+    //-------------------------------
+
+    //Dibujar barco hundido en el tablero del jugador
+    /** Dibuja el barco hundido (todas sus casillas) sobre gridBoard */
+    private void drawSunkOnPlayer(int row, int col) {
+        // Encuentra la SavedShip cuyo id coincide con el que acabamos de hundir
+        for (SavedShip s : playerShips) {
+            String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
+            if (enemyRemainingParts.getOrDefault(shipId, 1) == 0) {
+                int size = switch (s.getType()) {
+                    case "fragata"    -> 1;
+                    case "submarino"  -> 2;
+                    case "destructor" -> 3;
+                    case "portaviones"-> 4;
+                    default           -> 1;
+                };
+                for (int i = 0; i < size; i++) {
+                    int r = s.getRow() + (s.isHorizontal() ? 0 : i);
+                    int c = s.getCol() + (s.isHorizontal() ? i : 0);
+                    StackPane cell = getCellPaneAt(gridBoard, r, c);
+                    Rectangle part = new Rectangle(30, 30, Color.GREY);
+                    part.setOpacity(0.8);
+                    cell.getChildren().add(part);
+                }
+                break;
+            }
+        }
+    }
+    //-------------
 
     //Encargado de pum pum
     private void handleShot(StackPane cell) {
@@ -505,6 +641,7 @@ public class GameController extends NavigationAdapter {
             }
             return;
         }
+        if (!playerTurn) return; //Bloqueamos si no es turno
 
         // Coordenadas 0-based
         int row = GridPane.getRowIndex(cell) - 1;
@@ -535,34 +672,167 @@ public class GameController extends NavigationAdapter {
         if (hitShip.isEmpty()) {
             /* --------------- AGUA --------------- */
             drawMiss(cell);
-            saveShotsToFile(); //Guardamos aunque sea agua
-            // aquí pasarías turno al oponente
-            return;
-        }
-
-        /* --------------- TOCADO / HUNDIDO --------------- */
-        SavedShip ship = hitShip.get();
-        String shipId = ship.getType() + "_" + ship.getRow() + "_" + ship.getCol();
-        int partsLeft = enemyRemainingParts.get(shipId) - 1;
-        enemyRemainingParts.put(shipId, partsLeft);
-
-        if (partsLeft == 0) {
-            // HUNDIDO
-            drawSunk(ship);
-            enemyShipsAlive--;
-            if (enemyShipsAlive == 0) {
-                showFloatingMessage("¡Has ganado!");
-            }
-            //jugador puede volver a disparar
         } else {
-            //TOCADO
-            drawHit(cell);
-            // jugador puede volver a disparar
+            // TOCADO / HUNDIDO
+            SavedShip ship = hitShip.get();
+            String shipId = ship.getType() + "_" + ship.getRow() + "_" + ship.getCol();
+            int partsLeft = enemyRemainingParts.get(shipId) - 1;
+            enemyRemainingParts.put(shipId, partsLeft);
+
+            if (partsLeft == 0) {
+                drawSunk(ship);
+                enemyShipsAlive--;
+                if (enemyShipsAlive == 0) {
+                    showEndgameDialog(true); //GANASTE
+                    return;  // fin de juego
+                }
+            } else {
+                drawHit(cell);
+            }
         }
         saveShotsToFile();
+
+        // ————————— Cambio de turno SIEMPRE —————————
+        playerTurn = false;
+        updateTurnLabel();
+        PauseTransition pause = new PauseTransition(Duration.seconds(1));
+        pause.setOnFinished(e -> enemyTurn());
+        pause.play();
     }
 
-    //Guardamos los disparos
+    //Metodo de disparos de la maquina
+    private void enemyTurn(){
+        // Elegir aleatoriamente una celda válida del tablero del jugador
+        int row, col;
+        String key;
+        do {
+            row = new Random().nextInt(10);
+            col = new Random().nextInt(10);
+            key = row + "," + col;
+        } while (firedByEnemy.contains(key));  // firedByEnemy: Set<String> que guardas por separado
+        firedByEnemy.add(key);
+
+        // Obtener la StackPane correspondiente en gridBoard
+        StackPane cell = getCellPaneAt(gridBoard, row, col);
+        boolean hit = checkPlayerShipHit(row, col); // implementa lógica similar a handleShot
+
+        if (hit) {
+            drawHit(cell);     // puedes crear versiones para el jugador
+            if (checkIfPlayerShipSunk(row, col)) {
+                drawSunkOnPlayer(row, col);
+                playerShipsAlive--;
+                if (playerShipsAlive == 0) {
+                    showEndgameDialog(false); //PERDISTE
+                    return;
+                }
+            }
+        } else {
+            drawMiss(cell);
+        }
+
+        saveEnemyShotsToFile();
+        // Devolver el turno al jugador
+        playerTurn = true;
+        updateTurnLabel();
+    }
+
+    private void showEndgameDialog(boolean playerWon) {
+        // Ejecutar en el hilo de JavaFX
+        Platform.runLater(() -> {
+            // Nuevo Stage modal
+            Stage dialog = new Stage();
+            dialog.initModality(Modality.APPLICATION_MODAL);
+            dialog.setTitle(playerWon ? "¡Victoria!" : "Derrota");
+
+            Label msg = new Label(playerWon ? "¡Ganaste! :)" : "¡Perdiste! :(");
+            msg.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+
+            Button btnMenu = new Button("Volver al menú");
+            Button btnSalir = new Button("Salir del juego");
+
+            btnMenu.setOnAction(e -> {
+                try {
+                    // Cargar start-view.fxml y obtener su controlador
+                    FXMLLoader loader = new FXMLLoader(
+                            getClass().getResource("/com/example/miniproyecto3/start-view.fxml")
+                    );
+                    Parent root = loader.load();
+                    StartController startCtrl = loader.getController();
+                    // Deshabilitar el botón Continuar
+                    startCtrl.disableContinueButton();
+                    // Reemplazar la escena actual
+                    Scene scene = new Scene(root);
+                    Stage primary = (Stage) gridBoard.getScene().getWindow();
+                    primary.setScene(scene);
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+                dialog.close();
+            });
+
+            btnSalir.setOnAction(e -> {
+                Platform.exit();
+            });
+
+            HBox botones = new HBox(10, btnMenu, btnSalir);
+            botones.setAlignment(Pos.CENTER);
+
+            VBox layout = new VBox(20, msg, botones);
+            layout.setPadding(new Insets(20));
+            layout.setAlignment(Pos.CENTER);
+
+            dialog.setScene(new Scene(layout));
+            dialog.show();
+        });
+    }
+//SISTEMA DE GUARDADO DE DISPAROS Y CARGADO DE LA IA.
+
+    /** Guarda en disco los disparos de la IA en firedByEnemy */
+    private void saveEnemyShotsToFile() {
+        try (BufferedWriter w = Files.newBufferedWriter(Paths.get(ENEMY_SHOTS_SAVE_PATH))) {
+            for (String shot : firedByEnemy) {
+                w.write(shot);
+                w.newLine();
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    /** Carga los disparos de la IA al arrancar la pantalla */
+    private void loadEnemyShotsFromFile() {
+        Path p = Paths.get(ENEMY_SHOTS_SAVE_PATH);
+        if (!Files.exists(p)) return;
+        try (BufferedReader r = Files.newBufferedReader(p)) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length != 2) continue;
+                int row = Integer.parseInt(parts[0]);
+                int col = Integer.parseInt(parts[1]);
+                String key = row + "," + col;
+                firedByEnemy.add(key);
+                // Dibuja el resultado en gridBoard
+                StackPane cell = getCellPaneAt(gridBoard, row, col);
+                boolean hit = checkPlayerShipHit(row, col);
+                if (hit) {
+                    // si ya estaba hundido no queremos dibujar doble,
+                    // pero para simplificar, usamos drawHit:
+                    drawHit(cell);
+                } else {
+                    drawMiss(cell);
+                }
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+
+//------------------
+
+
+    //Guardamos los disparos (ESTO ES DEL JUGADOR)
     private void saveShotsToFile() {
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(SHOTS_SAVE_PATH))) {
             for (String shot : firedCells) {
