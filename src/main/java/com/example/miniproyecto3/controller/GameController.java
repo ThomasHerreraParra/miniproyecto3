@@ -55,7 +55,7 @@ public class GameController extends NavigationAdapter {
 // Contador de barcos del jugador (inicialízalo igual que enemyShipsAlive)
     private int playerShipsAlive;
 
-
+    private final Map<String, Integer> playerRemainingParts = new HashMap<>();
     private final Map<String, Integer> shipCounts = new HashMap<>(); // Stock de barcos por tipo
     private Label activeCountLanbel = null;     //Variable que almacena el contador del barco actualmente siendo arrastrado
     private static final String SHOTS_SAVE_PATH = "shots.txt"; //Archivo plano para guardar los disparos
@@ -91,11 +91,14 @@ public class GameController extends NavigationAdapter {
         }
         firedCells.clear();
         enemyRemainingParts.clear();
+        playerRemainingParts.clear();
+
         enemyShipsAlive = 0;
+        playerShipsAlive = 0;
         // Inicializar contadores
         shipCounts.put("fragata", 4);
-        shipCounts.put("submarino", 2);
-        shipCounts.put("destructor", 3);
+        shipCounts.put("submarino", 3);
+        shipCounts.put("destructor", 2);
         shipCounts.put("portaviones", 1);
         createGrid();
         createGridEnemy();
@@ -108,16 +111,27 @@ public class GameController extends NavigationAdapter {
         /* 1️⃣ Pintamos SOLO el tablero del jugador */
         if (Files.exists(playerFile)) {
             //Pintar, y ademas obtenemos la lista para ajustar contadores
-            List<SavedShip> alreadyPlaced =
-                    loadBoardFromFile(PLAYER_SAVE_PATH, gridBoard, true);   // paint = true
+            List<SavedShip> alreadyPlaced = loadBoardFromFile(PLAYER_SAVE_PATH, gridBoard, true);   // paint = true
             playerShips.addAll(alreadyPlaced);
 
+            System.out.println("Barcos del jugador cargados: " + playerShips.size());
             //Restar del stock todos los barcos que ya estaban colocados
             for (SavedShip s : alreadyPlaced) {
                 shipCounts.put(s.getType(), shipCounts.get(s.getType()) - 1);
-            }
-            refreshAllCounters();
+                System.out.println("Partes vivas del jugador: " + playerRemainingParts.size());
 
+                int size = switch (s.getType()) {
+                    case "fragata" -> 1;
+                    case "submarino" -> 3;
+                    case "destructor" -> 2;
+                    case "portaviones" -> 4;
+                    default -> 1;
+                };
+                String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
+                playerRemainingParts.put(shipId, size);
+            }
+
+            refreshAllCounters();
             //Deshabilitamos seleccion si ya no queda ninguno
             boolean allPlaced = shipCounts.values().stream().allMatch(v -> v == 0);
             shipSelectionArea.setDisable(allPlaced);
@@ -130,8 +144,8 @@ public class GameController extends NavigationAdapter {
             for (SavedShip s : enemyShips) {
                 int size = switch (s.getType()) {
                     case "fragata"   -> 1;
-                    case "submarino" -> 2;
-                    case "destructor"-> 3;
+                    case "submarino" -> 3;
+                    case "destructor"-> 2;
                     case "portaviones"->4;
                     default          -> 1;
                 };
@@ -140,20 +154,25 @@ public class GameController extends NavigationAdapter {
             }
             enemyShipsAlive = enemyRemainingParts.size();
         }
-        //Cargamos disparos previos
-        playerShipsAlive = playerShips.size();      // número de barcos colocados
-        if (allShipsPlaced()) {
-            playerTurn = true;
-            updateTurnLabel();
-        }
-
         // Cargamos disparos previos
         loadShotsFromFile();
         loadEnemyShotsFromFile();
 
 
+// ⬇️ AGREGA ESTO AQUÍ
+        enemyShipsAlive = countAliveShips(enemyShips, enemyRemainingParts);
+        if (playerShips.isEmpty() || playerRemainingParts.isEmpty()) {
+            System.out.println("⚠️ No hay barcos del jugador cargados o no se cargaron correctamente");
+            return; // Evita que se muestre "perdiste" por error
+        }
+        playerShipsAlive = countAliveShips(playerShips, playerRemainingParts); // o usa tu mapa playerRemainingParts
+        if (enemyShipsAlive == 0) {
+            showEndgameDialog(true);
+        } else if (playerShipsAlive == 0) {
+            showEndgameDialog(false);
+        }
+
         // Si venimos de una partida guardada ya lista...
-        playerShipsAlive = playerShips.size();
         if (allShipsPlaced()) {
             playerTurn = true;
             updateTurnLabel();
@@ -550,13 +569,18 @@ public class GameController extends NavigationAdapter {
             for (int col = 0; col < numCols; col++) {
                 StackPane cell = new StackPane();
                 cell.setPrefSize(cellSize, cellSize);
+
+                // Guardar coordenadas como propiedades de la celda
+                cell.getProperties().put("row", row);
+                cell.getProperties().put("col", col);
+
                 Rectangle background = new Rectangle(cellSize, cellSize);
                 background.setFill(Color.web("#e6f7ff"));
                 background.setStroke(Color.LIGHTGRAY);
                 cell.getChildren().add(background);
+
                 enemyBoard.add(cell, col + 1, row + 1);
                 cell.setOnMouseClicked(e -> handleShot(cell));
-
             }
         }
     }
@@ -567,8 +591,8 @@ public class GameController extends NavigationAdapter {
         for (SavedShip s : playerShips) {
             int size = switch (s.getType()) {
                 case "fragata"    -> 1;
-                case "submarino"  -> 2;
-                case "destructor" -> 3;
+                case "submarino"  -> 3;
+                case "destructor" -> 2;
                 case "portaviones"-> 4;
                 default           -> 1;
             };
@@ -578,8 +602,8 @@ public class GameController extends NavigationAdapter {
                 if (r == row && c == col) {
                     // Reducir partes vivas del barco
                     String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
-                    int rem = enemyRemainingParts.getOrDefault(shipId, size) - 1;
-                    enemyRemainingParts.put(shipId, rem);
+                    int rem = playerRemainingParts.getOrDefault(shipId, size) - 1;
+                    playerRemainingParts.put(shipId, rem);
                     return true;
                 }
             }
@@ -589,12 +613,21 @@ public class GameController extends NavigationAdapter {
 
     /** Devuelve true si tras este impacto acabamos de hundir el barco al que pertenece (row,col) */
     private boolean checkIfPlayerShipSunk(int row, int col) {
-        // Busca la SavedShip que incluye (row,col)
         for (SavedShip s : playerShips) {
-            String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
-            // Si tras restar en checkPlayerShipHit quedó a 0, entonces es hundido
-            if (enemyRemainingParts.getOrDefault(shipId, 1) == 0) {
-                return true;
+            int size = switch (s.getType()) {
+                case "fragata"    -> 1;
+                case "submarino"  -> 3;
+                case "destructor" -> 2;
+                case "portaviones"-> 4;
+                default           -> 1;
+            };
+            for (int i = 0; i < size; i++) {
+                int r = s.getRow() + (s.isHorizontal() ? 0 : i);
+                int c = s.getCol() + (s.isHorizontal() ? i : 0);
+                if (r == row && c == col) {
+                    String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
+                    return playerRemainingParts.getOrDefault(shipId, 1) == 0;
+                }
             }
         }
         return false;
@@ -610,8 +643,8 @@ public class GameController extends NavigationAdapter {
             if (enemyRemainingParts.getOrDefault(shipId, 1) == 0) {
                 int size = switch (s.getType()) {
                     case "fragata"    -> 1;
-                    case "submarino"  -> 2;
-                    case "destructor" -> 3;
+                    case "submarino"  -> 3;
+                    case "destructor" -> 2;
                     case "portaviones"-> 4;
                     default           -> 1;
                 };
@@ -644,8 +677,8 @@ public class GameController extends NavigationAdapter {
         if (!playerTurn) return; //Bloqueamos si no es turno
 
         // Coordenadas 0-based
-        int row = GridPane.getRowIndex(cell) - 1;
-        int col = GridPane.getColumnIndex(cell) - 1;
+        int row = (int) cell.getProperties().get("row");
+        int col = (int) cell.getProperties().get("col");
         String key = row + "," + col;
 
         // Ya disparado
@@ -656,8 +689,8 @@ public class GameController extends NavigationAdapter {
         Optional<SavedShip> hitShip = enemyShips.stream().filter(s -> {
             int size = switch (s.getType()) {
                 case "fragata"   -> 1;
-                case "submarino" -> 2;
-                case "destructor"-> 3;
+                case "submarino" -> 3;
+                case "destructor"-> 2;
                 case "portaviones"->4;
                 default          -> 1;
             };
@@ -863,8 +896,8 @@ public class GameController extends NavigationAdapter {
                 Optional<SavedShip> hitShip = enemyShips.stream().filter(s -> {
                     int size = switch (s.getType()) {
                         case "fragata" -> 1;
-                        case "submarino" -> 2;
-                        case "destructor" -> 3;
+                        case "submarino" -> 3;
+                        case "destructor" -> 2;
                         case "portaviones" -> 4;
                         default -> 1;
                     };
@@ -916,8 +949,8 @@ public class GameController extends NavigationAdapter {
     private void drawSunk(SavedShip s) {
         int size = switch (s.getType()) {
             case "fragata"   -> 1;
-            case "submarino" -> 2;
-            case "destructor"-> 3;
+            case "submarino" -> 3;
+            case "destructor"-> 2;
             case "portaviones"->4;
             default          -> 1;
         };
@@ -1120,4 +1153,18 @@ public class GameController extends NavigationAdapter {
             }
         }
     }
+
+
+    //METODO AUXILIAR
+    private int countAliveShips(List<SavedShip> ships, Map<String, Integer> remainingParts) {
+        int alive = 0;
+        for (SavedShip s : ships) {
+            String id = s.getType() + "_" + s.getRow() + "_" + s.getCol();
+            if (remainingParts.getOrDefault(id, 0) > 0) {
+                alive++;
+            }
+        }
+        return alive;
+    }
+
 }

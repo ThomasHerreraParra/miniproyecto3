@@ -36,8 +36,8 @@ public class EnemyController extends NavigationAdapter {
     @FXML
     public void initialize() {
         shipCounts.put("fragata", 4);
-        shipCounts.put("submarino", 2);
-        shipCounts.put("destructor", 3);
+        shipCounts.put("submarino", 3);
+        shipCounts.put("destructor", 2);
         shipCounts.put("portaviones", 1);
         createGrid();
         Path saveFile = Paths.get(SAVE_PATH);
@@ -94,8 +94,8 @@ public class EnemyController extends NavigationAdapter {
 
             int size = switch (shipName) {
                 case "fragata" -> 1;
-                case "submarino" -> 2;
-                case "destructor" -> 3;
+                case "submarino" -> 3;
+                case "destructor" -> 2;
                 case "portaviones" -> 4;
                 default -> 1;
             };
@@ -148,8 +148,8 @@ public class EnemyController extends NavigationAdapter {
         final int GRID_SIZE = 10;
         Map<String, Integer> shipCounts = Map.of(
                 "fragata", 4,
-                "submarino", 2,
-                "destructor", 3,
+                "submarino", 3,
+                "destructor", 2,
                 "portaviones", 1
         );
 
@@ -162,8 +162,8 @@ public class EnemyController extends NavigationAdapter {
             int count = entry.getValue();
             int size = switch (shipName) {
                 case "fragata" -> 1;
-                case "submarino" -> 2;
-                case "destructor" -> 3;
+                case "submarino" -> 3;
+                case "destructor" -> 2;
                 case "portaviones" -> 4;
                 default -> 1;
             };
@@ -174,6 +174,11 @@ public class EnemyController extends NavigationAdapter {
                 boolean horizontal = rand.nextBoolean();
                 int row = rand.nextInt(GRID_SIZE);
                 int col = rand.nextInt(GRID_SIZE);
+
+                // ✅ NUEVA validación de espacio antes del loop
+                if ((horizontal && col + size > GRID_SIZE) || (!horizontal && row + size > GRID_SIZE)) {
+                    continue;
+                }
 
                 boolean canPlace = true;
                 for (int i = 0; i < size; i++) {
@@ -275,8 +280,8 @@ public class EnemyController extends NavigationAdapter {
             // 1) size lookup
             int size = switch (s.getType()) {
                 case "fragata"     -> 1;
-                case "submarino"   -> 2;
-                case "destructor"  -> 3;
+                case "submarino"   -> 3;
+                case "destructor"  -> 2;
                 case "portaviones" -> 4;
                 default            -> 1;
             };

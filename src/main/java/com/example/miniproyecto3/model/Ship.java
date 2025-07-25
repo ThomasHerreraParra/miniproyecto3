@@ -15,9 +15,6 @@ public class Ship {
         this.isHorizontal = true; // Por defecto, el barco es horizontal
     }
 
-    // Métodos getter y setter para acceder y modificar atributos del barco
-
-    public String getName() { return name; }
 
     public int getSize() { return size; }
 

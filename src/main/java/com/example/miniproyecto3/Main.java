@@ -6,6 +6,7 @@ import javafx.stage.Stage;
 
 public class Main extends Application {
 
+
     @Override
     public void start(Stage primaryStage) {
         StartStage startStage = new StartStage(); // Muestra la pantalla de inicio
