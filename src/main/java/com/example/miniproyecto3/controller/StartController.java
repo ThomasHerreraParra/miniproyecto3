@@ -23,10 +23,9 @@ public class StartController extends NavigationAdapter {
     private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
     private static final String SHOTS_SAVE_PATH = "shots.txt";
     private static final String ENEMY_SHOTS_SAVE_PATH = "enemy_shots.txt";  //Disparos hechos hacia el enemigo
-
+    private boolean hasOngoingGame;
 
     /** Indica si ya se pulsó “Jugar” ó “Nueva partida” en esta sesión */
-    private static boolean hasOngoingGame = false;
     //Metodo auxiliar para solicitar y guardar el nickname
     private Optional<String> promptAndSaveNickname() {
         TextInputDialog dialog = new TextInputDialog();
@@ -53,7 +52,12 @@ public class StartController extends NavigationAdapter {
 
     @FXML
     private void initialize() {
-        if (!hasOngoingGame) {
+        boolean savedGameExists =
+                Files.exists(Paths.get(NICKNAME_PATH)) &&
+                        Files.exists(Paths.get(PLAYER_SAVE_PATH)) &&
+                        Files.exists(Paths.get(ENEMY_SAVE_PATH));
+
+        if (!savedGameExists) {
             // Si no hay partida en memoria, borra archivos viejos al iniciar
             try {
                 Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
@@ -64,6 +68,10 @@ public class StartController extends NavigationAdapter {
                 new Alert(Alert.AlertType.ERROR, "Error limpiando datos antiguos").showAndWait();
                 ex.printStackTrace();
             }
+        }
+
+        if (savedGameExists) {
+            hasOngoingGame = true;
         }
 
         boolean savedOnDisk = Files.exists(Paths.get(PLAYER_SAVE_PATH))
