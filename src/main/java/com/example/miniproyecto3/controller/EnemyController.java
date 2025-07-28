@@ -29,15 +29,14 @@ public class EnemyController extends NavigationAdapter {
     private GridPane enemyBoard;
     private final Map<String, Integer> shipCounts = new HashMap<>();
     private final int GRID_SIZE = 10;
-    private final int CELL_SIZE = 50;
     private static final String SAVE_PATH = "enemy_board.txt";
 
 
     @FXML
     public void initialize() {
         shipCounts.put("fragata", 4);
-        shipCounts.put("submarino", 3);
-        shipCounts.put("destructor", 2);
+        shipCounts.put("destructor", 3);
+        shipCounts.put("submarino", 2);
         shipCounts.put("portaviones", 1);
         createGrid();
         Path saveFile = Paths.get(SAVE_PATH);
@@ -52,6 +51,7 @@ public class EnemyController extends NavigationAdapter {
 
     private void createGrid() {
         // Etiquetas de columna
+        int CELL_SIZE = 50;
         for (int col = 0; col < GRID_SIZE; col++) {
             Label label = new Label(String.valueOf(col + 1));
             label.setMinSize(CELL_SIZE, CELL_SIZE);
@@ -91,13 +91,12 @@ public class EnemyController extends NavigationAdapter {
         for (Map.Entry<String, Integer> entry : shipCounts.entrySet()) {
             String shipName = entry.getKey();
             int count = entry.getValue();
-
             int size = switch (shipName) {
                 case "fragata" -> 1;
                 case "submarino" -> 3;
                 case "destructor" -> 2;
                 case "portaviones" -> 4;
-                default -> 1;
+                default -> 0;
             };
 
             int attempts = 0;
@@ -114,7 +113,7 @@ public class EnemyController extends NavigationAdapter {
                         case "submarino" -> new Submarino();
                         case "destructor" -> new Destructor();
                         case "portaviones" -> new Portaviones();
-                        default -> null;
+                        default -> throw new IllegalArgumentException("Tipo de barco inválido:");
                     };
 
                     if (ship == null) continue;
@@ -125,7 +124,7 @@ public class EnemyController extends NavigationAdapter {
                         int r = row + (horizontal ? 0 : i);
                         int c = col + (horizontal ? i : 0);
                         StackPane cell = getCell(r, c);
-                        Rectangle rect = (Rectangle) cell.getChildren().get(0);
+                        Rectangle rect = (Rectangle) cell.getChildren().getFirst();
                         rect.setFill(color);
                     }
 
@@ -140,7 +139,7 @@ public class EnemyController extends NavigationAdapter {
             }
         }
         // 🔒 Persistimos el tablero en disco
-        saveBoard(SAVE_PATH, savedShips);
+        saveBoard(savedShips);
     }
 
     //nuevo metodo publico para generar un nuevo archivo desde GameController
@@ -148,8 +147,8 @@ public class EnemyController extends NavigationAdapter {
         final int GRID_SIZE = 10;
         Map<String, Integer> shipCounts = Map.of(
                 "fragata", 4,
-                "submarino", 3,
-                "destructor", 2,
+                "submarino", 2,
+                "destructor", 3,
                 "portaviones", 1
         );
 
@@ -165,7 +164,7 @@ public class EnemyController extends NavigationAdapter {
                 case "submarino" -> 3;
                 case "destructor" -> 2;
                 case "portaviones" -> 4;
-                default -> 1;
+                default -> 0;
             };
 
             int attempts = 0;
@@ -216,13 +215,13 @@ public class EnemyController extends NavigationAdapter {
 
 
      /* Escribe la instantánea del tablero en un archivo de texto sin formato (CSV).    */
-    private void saveBoard(String filePath, List<SavedShip> ships) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+    private void saveBoard(List<SavedShip> ships) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(EnemyController.SAVE_PATH))) {
             for (SavedShip ship : ships) {
                 writer.write(ship.toString());
                 writer.newLine();
             }
-            System.out.println("Board saved to: " + filePath);
+            System.out.println("Board saved to: " + EnemyController.SAVE_PATH);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -236,7 +235,7 @@ public class EnemyController extends NavigationAdapter {
             if (r >= GRID_SIZE || c >= GRID_SIZE) return false;
 
             StackPane cell = getCell(r, c);
-            Rectangle rect = (Rectangle) cell.getChildren().get(0);
+            Rectangle rect = (Rectangle) cell.getChildren().getFirst();
             if (!rect.getFill().equals(Color.web("#e6f7ff"))) return false;
         }
         return true;
@@ -283,7 +282,7 @@ public class EnemyController extends NavigationAdapter {
                 case "submarino"   -> 3;
                 case "destructor"  -> 2;
                 case "portaviones" -> 4;
-                default            -> 1;
+                default            -> 0;
             };
 
             // 2) obtain the colour the same way you already do
@@ -302,7 +301,7 @@ public class EnemyController extends NavigationAdapter {
                 int r = s.getRow() + (s.isHorizontal() ? 0 : i);
                 int c = s.getCol() + (s.isHorizontal() ? i : 0);
 
-                Rectangle rect = (Rectangle) getCell(r, c).getChildren().get(0);
+                Rectangle rect = (Rectangle) getCell(r, c).getChildren().getFirst();
                 rect.setFill(colour);
             }
         }
