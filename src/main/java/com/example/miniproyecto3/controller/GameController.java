@@ -22,7 +22,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import com.example.miniproyecto3.ships.*;
-import com.example.miniproyecto3.controller.StartController;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -92,16 +91,15 @@ public class GameController extends NavigationAdapter {
         firedCells.clear();
         enemyRemainingParts.clear();
         playerRemainingParts.clear();
-
         enemyShipsAlive = 0;
         playerShipsAlive = 0;
         // Inicializar contadores
         shipCounts.put("fragata", 4);
-        shipCounts.put("submarino", 3);
-        shipCounts.put("destructor", 2);
+        shipCounts.put("destructor", 3);
+        shipCounts.put("submarino", 2);
         shipCounts.put("portaviones", 1);
-        createGrid();
-        createGridEnemy();
+        createGrid(gridBoard, false);  // tablero del jugador
+        createGrid(enemyBoard, true);  // tablero del enemigo
         loadShips();
 
         //Si el archivo guardado existe entonces carga los tableros cargados
@@ -120,15 +118,7 @@ public class GameController extends NavigationAdapter {
                 shipCounts.put(s.getType(), shipCounts.get(s.getType()) - 1);
                 System.out.println("Partes vivas del jugador: " + playerRemainingParts.size());
 
-                int size = switch (s.getType()) {
-                    case "fragata" -> 1;
-                    case "submarino" -> 3;
-                    case "destructor" -> 2;
-                    case "portaviones" -> 4;
-                    default -> 1;
-                };
-                String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
-                playerRemainingParts.put(shipId, size);
+                boatSize(s, playerRemainingParts);
             }
 
             refreshAllCounters();
@@ -142,15 +132,7 @@ public class GameController extends NavigationAdapter {
             enemyShips.addAll(loadBoardFromFile(ENEMY_SAVE_PATH, null, false)); // paint=false
             //Inicializar cotador de partes vivas
             for (SavedShip s : enemyShips) {
-                int size = switch (s.getType()) {
-                    case "fragata"   -> 1;
-                    case "submarino" -> 3;
-                    case "destructor"-> 2;
-                    case "portaviones"->4;
-                    default          -> 1;
-                };
-                String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol(); // id único
-                enemyRemainingParts.put(shipId, size);
+                boatSize(s, enemyRemainingParts);
             }
             enemyShipsAlive = enemyRemainingParts.size();
         }
@@ -178,6 +160,18 @@ public class GameController extends NavigationAdapter {
             updateTurnLabel();
             shipSelectionArea.setDisable(true);
         }
+    }
+
+    private void boatSize(SavedShip s, Map<String, Integer> playerRemainingParts) {
+        int size = switch (s.getType()) {
+            case "fragata" -> 1;
+            case "submarino" -> 3;
+            case "destructor" -> 2;
+            case "portaviones" -> 4;
+            default -> 0;
+        };
+        String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
+        playerRemainingParts.put(shipId, size);
     }
 
     private void updateTurnLabel() {
@@ -279,8 +273,7 @@ public class GameController extends NavigationAdapter {
         return null;
     }
 
-
-    private void createGrid() {
+    private void createGrid(GridPane targetGrid, boolean isEnemy) {
         int numRows = 10;
         int numCols = 10;
         int cellSize = 50;
@@ -291,7 +284,7 @@ public class GameController extends NavigationAdapter {
             label.setMinSize(cellSize, cellSize);
             label.setAlignment(Pos.CENTER);
             label.setStyle("-fx-font-weight: bold;");
-            gridBoard.add(label, col + 1, 0);
+            targetGrid.add(label, col + 1, 0);
         }
 
         // Etiquetas de fila (A–J)
@@ -300,290 +293,251 @@ public class GameController extends NavigationAdapter {
             label.setMinSize(cellSize, cellSize);
             label.setAlignment(Pos.CENTER);
             label.setStyle("-fx-font-weight: bold;");
-            gridBoard.add(label, 0, row + 1);
+            targetGrid.add(label, 0, row + 1);
         }
 
-        // Crear celdas del tablero
+        // Celdas del tablero
         for (int row = 0; row < numRows; row++) {
             for (int col = 0; col < numCols; col++) {
                 StackPane cell = new StackPane();
                 cell.setPrefSize(cellSize, cellSize);
+
                 Rectangle background = new Rectangle(cellSize, cellSize);
                 background.setFill(Color.web("#e6f7ff"));
                 background.setStroke(Color.LIGHTGRAY);
                 cell.getChildren().add(background);
 
-                // Drag over
-                cell.setOnDragOver(e -> {
-                    if (e.getGestureSource() != cell && e.getDragboard().hasString()) {
-                        e.acceptTransferModes(TransferMode.MOVE);
+                if (isEnemy) {
+                    // Guardar coordenadas para el disparo
+                    cell.getProperties().put("row", row);
+                    cell.getProperties().put("col", col);
+                    cell.setOnMouseClicked(e -> handleShot(cell));
+                } else {
+                    // Comportamiento drag and drop
+                    setupPlayerCellBehavior(cell);
+                }
+
+                targetGrid.add(cell, col + 1, row + 1);
+            }
+        }
+    }
+
+    private void setupPlayerCellBehavior(StackPane cell) {
+        int numRows = 10, numCols = 10;
+        // Drag over
+        cell.setOnDragOver(e -> {
+            if (e.getGestureSource() != cell && e.getDragboard().hasString()) {
+                e.acceptTransferModes(TransferMode.MOVE);
+            }
+            e.consume();
+        });
+
+        // Drag dropped
+        cell.setOnDragDropped(e -> {
+            Dragboard db = e.getDragboard();
+            boolean success = false;
+            if (db.hasString()) {
+                String type = db.getString();
+                Ship ship = createShipFromString(type);
+                int size = ship.getSize();
+
+                Integer rowIdx = GridPane.getRowIndex(cell);
+                Integer colIdx = GridPane.getColumnIndex(cell);
+                int row0 = rowIdx == null ? 0 : rowIdx - 1;
+                int col0 = colIdx == null ? 0 : colIdx - 1;
+
+                boolean spaceAvailable = true;
+
+                for (int i = 0; i < size; i++) {
+                    int r = row0, c = col0;
+                    switch (currentDirection) {
+                        case RIGHT -> c += i;
+                        case LEFT  -> c -= i;
+                        case DOWN  -> r += i;
+                        case UP    -> r -= i;
                     }
-                    e.consume();
-                });
 
-                // Drag dropped
-                cell.setOnDragDropped(e -> {
-                    Dragboard db = e.getDragboard();
-                    boolean success = false;
-                    if (db.hasString()) {
-                        String type = db.getString();
-                        Ship ship = createShipFromString(type);
-                        int size = ship.getSize();
+                    if (r < 0 || r >= numRows || c < 0 || c >= numCols) {
+                        spaceAvailable = false;
+                        break;
+                    }
 
-                        Integer rowIdx = GridPane.getRowIndex(cell);
-                        Integer colIdx = GridPane.getColumnIndex(cell);
-                        int row0 = rowIdx == null ? 0 : rowIdx - 1;
-                        int col0 = colIdx == null ? 0 : colIdx - 1;
-
-                        boolean spaceAvailable = true;
-
-                        for (int i = 0; i < size; i++) {
-                            int r = row0, c = col0;
-                            switch (currentDirection) {
-                                case RIGHT -> c += i;
-                                case LEFT  -> c -= i;
-                                case DOWN  -> r += i;
-                                case UP    -> r -= i;
-                            }
-
-                            if (r < 0 || r >= numRows || c < 0 || c >= numCols) {
-                                spaceAvailable = false;
-                                break;
-                            }
-
-                            StackPane target = getCellPaneAt(r, c);
-                            boolean occupied = target.getChildren().stream()
-                                    .anyMatch(n -> {
-                                        if (n instanceof Rectangle rect) {
-                                            Object data = rect.getUserData();
-                                            return data == null || !"preview".equals(data);
-                                        }
-                                        return true;
-                                    });
-                            if (occupied) {
-                                spaceAvailable = false;
-                                break;
-                            }
-                        }
-
-                        if (spaceAvailable) {
-                            for (int i = 0; i < size; i++) {
-                                int r = row0, c = col0;
-                                switch (currentDirection) {
-                                    case RIGHT -> c += i;
-                                    case LEFT  -> c -= i;
-                                    case DOWN  -> r += i;
-                                    case UP    -> r -= i;
+                    StackPane target = getCellPaneAt(r, c);
+                    boolean occupied = target.getChildren().stream()
+                            .anyMatch(n -> {
+                                if (n instanceof Rectangle rect) {
+                                    Object data = rect.getUserData();
+                                    return !"preview".equals(data);
                                 }
-
-                                StackPane target = getCellPaneAt(r, c);
-                                Rectangle part = new Rectangle(30, 30, ship.getParts()[i].getFill());
-                                part.setStroke(Color.BLACK);
-                                part.setUserData("real");
-                                target.getChildren().add(part);
-                            }
-
-                            if (activeCountLanbel != null) {
-                                int currentCount = Integer.parseInt(activeCountLanbel.getText());
-                                activeCountLanbel.setText(String.valueOf(currentCount - 1));
-                                shipCounts.put(type, currentCount - 1);
-                            }
-
-                            SavedShip ss = toSavedShip(type, row0, col0, size, currentDirection);
-                            playerShips.add(ss);
-                            savePlayerBoard();
-
-                            // Después de playerShips.add(ss); y savePlayerBoard();
-                            if (allShipsPlaced()) {
-                                // Deshabilita el área de selección
-                                shipSelectionArea.setDisable(true);
-
-                                // Inicializa la vida de tus barcos y arranca el turno
-                                playerShipsAlive = playerShips.size();
-                                playerTurn = true;
-                                updateTurnLabel();
-                            }
-                            success = true;
-                        } else {
-                            showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
-                        }
+                                return true;
+                            });
+                    if (occupied) {
+                        spaceAvailable = false;
+                        break;
                     }
-                    e.setDropCompleted(success);
-                    e.consume();
-                });
+                }
 
-                // Click izquierdo y derecho
-                cell.setOnMouseClicked(e -> {
-                    if (e.getButton() == MouseButton.SECONDARY) {
-                        switch (currentDirection) {
-                            case RIGHT -> currentDirection = Direction.DOWN;
-                            case DOWN -> currentDirection = Direction.LEFT;
-                            case LEFT -> currentDirection = Direction.UP;
-                            case UP -> currentDirection = Direction.RIGHT;
-                        }
-                        previewShipPlacement(cell);
-                        showFloatingMessage("Dirección actual: " + currentDirection);
-                        return;
+                if (spaceAvailable) {
+                    placeShipOnBoard(ship, size, row0, col0);
+
+                    if (activeCountLanbel != null) {
+                        int currentCount = Integer.parseInt(activeCountLanbel.getText());
+                        activeCountLanbel.setText(String.valueOf(currentCount - 1));
+                        shipCounts.put(type, currentCount - 1);
                     }
 
-                    if (e.getButton() != MouseButton.PRIMARY) return;
+                    SavedShip ss = toSavedShip(type, row0, col0, size, currentDirection);
+                    playerShips.add(ss);
+                    savePlayerBoard();
 
-                    if (selectedShipType == null) {
-                        boolean shipsLefts = shipCounts.values().stream().anyMatch(c -> c > 0);
-                        if (shipsLefts) {
-                            showFloatingMessage("Selecciona un barco antes de colocarlo");
-                        }
-                        return;
+                    // Después de playerShips.add(ss); y savePlayerBoard();
+                    if (allShipsPlaced()) {
+                        // Deshabilita el área de selección
+                        shipSelectionArea.setDisable(true);
+
+                        // Inicializa la vida de tus barcos y arranca el turno
+                        playerShipsAlive = playerShips.size();
+                        playerTurn = true;
+                        updateTurnLabel();
                     }
-
-                    int currentCount = shipCounts.getOrDefault(selectedShipType, 0);
-                    if (currentCount <= 0) {
-                        showFloatingMessage("No quedan barcos de este tipo");
-                        return;
-                    }
-
-                    Ship ship = createShipFromString(selectedShipType);
-                    if (ship == null) {
-                        showFloatingMessage("Tipo de barco inválido");
-                        return;
-                    }
-
-                    int size = ship.getSize();
-                    Integer rowIdx = GridPane.getRowIndex(cell);
-                    Integer colIdx = GridPane.getColumnIndex(cell);
-                    int row0 = rowIdx == null ? 0 : rowIdx - 1;
-                    int col0 = colIdx == null ? 0 : colIdx - 1;
-
-                    boolean canPlace = true;
-                    for (int i = 0; i < size; i++) {
-                        int r = row0, c = col0;
-                        switch (currentDirection) {
-                            case RIGHT -> c += i;
-                            case LEFT  -> c -= i;
-                            case DOWN  -> r += i;
-                            case UP    -> r -= i;
-                        }
-
-                        if (r < 0 || r >= 10 || c < 0 || c >= 10) {
-                            canPlace = false; break;
-                        }
-
-                        StackPane target = getCellPaneAt(r, c);
-                        if (target == null) {canPlace = false;break;}
-
-                        boolean ocupado = target.getChildren().stream().anyMatch(n -> {
-                                    if (n instanceof Rectangle rect) {
-                                        Object data = rect.getUserData();
-                                        return "real".equals(data);
-                                    }
-                                    return true;
-                                });
-                        if (ocupado) {canPlace = false;break;}
-                    }
-
-                    if (canPlace) {
-                        for (int i = 0; i < size; i++) {
-                            int r = row0, c = col0;
-                            switch (currentDirection) {
-                                case RIGHT -> c += i;
-                                case LEFT  -> c -= i;
-                                case DOWN  -> r += i;
-                                case UP    -> r -= i;
-                            }
-
-                            StackPane target = getCellPaneAt(r, c);
-                            Rectangle part = new Rectangle(30, 30, ship.getParts()[i].getFill());
-                            part.setStroke(Color.BLACK);
-                            part.setUserData("real");
-                            target.getChildren().add(part);
-                        }
-
-                        if (currentCount > 0) {
-                            shipCounts.put(selectedShipType, currentCount - 1);
-                            updateLabelCount(selectedShipType, currentCount - 1);
-                        }
-
-                        //Guardar en playerShips y en el archivo
-                        SavedShip ss = toSavedShip(selectedShipType, row0, col0, size, currentDirection);
-                        playerShips.add(ss);
-                        savePlayerBoard();
-
-                        // ¡Lanzamos la partida si fue el último barco!
-                        if (allShipsPlaced()) {
-                            shipSelectionArea.setDisable(true);
-                            playerShipsAlive = playerShips.size();
-                            playerTurn = true;
-                            updateTurnLabel();
-                        }
-
-
-
-                    } else {
-                        showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
-                    }
-                });
-
-                // Sombra
-                cell.setOnMouseMoved(e -> previewShipPlacement(cell));
-                cell.setOnMouseEntered(e -> previewShipPlacement(cell));
-                cell.setOnMouseExited(e -> {
-                    for (Node node : gridBoard.getChildren()) {
-                        if (node instanceof StackPane stack) {
-                            stack.getChildren().removeIf(child ->
-                                    child instanceof Rectangle rect &&
-                                            "preview".equals(rect.getUserData()));
-                        }
-                    }
-                });
-
-                gridBoard.add(cell, col + 1, row + 1);
+                    success = true;
+                } else {
+                    showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
+                }
             }
+            e.setDropCompleted(success);
+            e.consume();
+        });
+
+        // Click izquierdo y derecho
+        cell.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.SECONDARY) {
+                switch (currentDirection) {
+                    case RIGHT -> currentDirection = Direction.DOWN;
+                    case DOWN -> currentDirection = Direction.LEFT;
+                    case LEFT -> currentDirection = Direction.UP;
+                    case UP -> currentDirection = Direction.RIGHT;
+                }
+                previewShipPlacement(cell);
+                showFloatingMessage("Dirección actual: " + currentDirection);
+                return;
+            }
+
+            if (e.getButton() != MouseButton.PRIMARY) return;
+
+            if (selectedShipType == null) {
+                boolean shipsLefts = shipCounts.values().stream().anyMatch(c -> c > 0);
+                if (shipsLefts) {
+                    showFloatingMessage("Selecciona un barco antes de colocarlo");
+                }
+                return;
+            }
+
+            int currentCount = shipCounts.getOrDefault(selectedShipType, 0);
+            if (currentCount <= 0) {
+                showFloatingMessage("No quedan barcos de este tipo");
+                return;
+            }
+
+            Ship ship = createShipFromString(selectedShipType);
+            if (ship == null) {
+                showFloatingMessage("Tipo de barco inválido");
+                return;
+            }
+
+            int size = ship.getSize();
+            Integer rowIdx = GridPane.getRowIndex(cell);
+            Integer colIdx = GridPane.getColumnIndex(cell);
+            int row0 = rowIdx == null ? 0 : rowIdx - 1;
+            int col0 = colIdx == null ? 0 : colIdx - 1;
+
+            boolean canPlace = true;
+            for (int i = 0; i < size; i++) {
+                int r = row0, c = col0;
+                switch (currentDirection) {
+                    case RIGHT -> c += i;
+                    case LEFT  -> c -= i;
+                    case DOWN  -> r += i;
+                    case UP    -> r -= i;
+                }
+
+                if (r < 0 || r >= 10 || c < 0 || c >= 10) {
+                    canPlace = false; break;
+                }
+
+                StackPane target = getCellPaneAt(r, c);
+                if (target == null) {canPlace = false;break;}
+
+                boolean ocupado = target.getChildren().stream().anyMatch(n -> {
+                    if (n instanceof Rectangle rect) {
+                        Object data = rect.getUserData();
+                        return "real".equals(data);
+                    }
+                    return true;
+                });
+                if (ocupado) {canPlace = false;break;}
+            }
+
+            if (canPlace) {
+                placeShipOnBoard(ship, size, row0, col0);
+
+                shipCounts.put(selectedShipType, currentCount - 1);
+                updateLabelCount(selectedShipType, currentCount - 1);
+
+                //Guardar en playerShips y en el archivo
+                SavedShip ss = toSavedShip(selectedShipType, row0, col0, size, currentDirection);
+                playerShips.add(ss);
+                savePlayerBoard();
+
+                // ¡Lanzamos la partida si fue el último barco!
+                if (allShipsPlaced()) {
+                    shipSelectionArea.setDisable(true);
+                    playerShipsAlive = playerShips.size();
+                    playerTurn = true;
+                    updateTurnLabel();
+                }
+
+            } else {
+                showFloatingMessage("Inválido: El barco se sale del tablero o el espacio está ocupado");
+            }
+        });
+
+        // Sombra
+        cell.setOnMouseMoved(e -> previewShipPlacement(cell));
+        cell.setOnMouseEntered(e -> previewShipPlacement(cell));
+        cell.setOnMouseExited(e -> {
+            for (Node node : gridBoard.getChildren()) {
+                if (node instanceof StackPane stack) {
+                    stack.getChildren().removeIf(child ->
+                            child instanceof Rectangle rect &&
+                                    "preview".equals(rect.getUserData()));
+                }
+            }
+        });
+
+    }
+
+    private void placeShipOnBoard(Ship ship, int size, int row0, int col0) {
+        for (int i = 0; i < size; i++) {
+            int r = row0, c = col0;
+            switch (currentDirection) {
+                case RIGHT -> c += i;
+                case LEFT  -> c -= i;
+                case DOWN  -> r += i;
+                case UP    -> r -= i;
+            }
+
+            StackPane target = getCellPaneAt(r, c);
+            if (target == null) {
+                throw new NullPointerException("Intento de colocar parte de un barco fuera del tablero.");
+            }
+            Rectangle part = new Rectangle(30, 30, ship.getParts()[i].getFill());
+            part.setStroke(Color.BLACK);
+            part.setUserData("real");
+            target.getChildren().add(part);
         }
     }
 
-    private void createGridEnemy(){
-        int numRows = 10;
-        int numCols = 10;
-        int cellSize = 50;
-
-        // Etiquetas de columna (1–10)
-        for (int col = 0; col < numCols; col++) {
-            Label label = new Label(String.valueOf(col + 1));
-            label.setMinSize(cellSize, cellSize);
-            label.setAlignment(Pos.CENTER);
-            label.setStyle("-fx-font-weight: bold;");
-            enemyBoard.add(label, col + 1, 0);
-        }
-
-        // Etiquetas de fila (A–J)
-        for (int row = 0; row < numRows; row++) {
-            Label label = new Label(String.valueOf((char) ('A' + row)));
-            label.setMinSize(cellSize, cellSize);
-            label.setAlignment(Pos.CENTER);
-            label.setStyle("-fx-font-weight: bold;");
-            enemyBoard.add(label, 0, row + 1);
-        }
-
-        // Crear celdas del tablero
-        for (int row = 0; row < numRows; row++) {
-            for (int col = 0; col < numCols; col++) {
-                StackPane cell = new StackPane();
-                cell.setPrefSize(cellSize, cellSize);
-
-                // Guardar coordenadas como propiedades de la celda
-                cell.getProperties().put("row", row);
-                cell.getProperties().put("col", col);
-
-                Rectangle background = new Rectangle(cellSize, cellSize);
-                background.setFill(Color.web("#e6f7ff"));
-                background.setStroke(Color.LIGHTGRAY);
-                cell.getChildren().add(background);
-
-                enemyBoard.add(cell, col + 1, row + 1);
-                cell.setOnMouseClicked(e -> handleShot(cell));
-            }
-        }
-    }
 //-----METODOS DE CHEQUEO DE IMPACTOS Y HUNDIDOS EN EL TABLERO DEL JUGADOR
 
     /** Devuelve true si la IA ha acertado en (row,col) sobre el jugador */
@@ -594,7 +548,7 @@ public class GameController extends NavigationAdapter {
                 case "submarino"  -> 3;
                 case "destructor" -> 2;
                 case "portaviones"-> 4;
-                default           -> 1;
+                default           -> 0;
             };
             for (int i = 0; i < size; i++) {
                 int r = s.getRow() + (s.isHorizontal() ? 0 : i);
@@ -619,7 +573,7 @@ public class GameController extends NavigationAdapter {
                 case "submarino"  -> 3;
                 case "destructor" -> 2;
                 case "portaviones"-> 4;
-                default           -> 1;
+                default           -> 0;
             };
             for (int i = 0; i < size; i++) {
                 int r = s.getRow() + (s.isHorizontal() ? 0 : i);
@@ -636,7 +590,7 @@ public class GameController extends NavigationAdapter {
 
     //Dibujar barco hundido en el tablero del jugador
     /** Dibuja el barco hundido (todas sus casillas) sobre gridBoard */
-    private void drawSunkOnPlayer(int row, int col) {
+    private void drawSunkOnPlayer() {
         // Encuentra la SavedShip cuyo id coincide con el que acabamos de hundir
         for (SavedShip s : playerShips) {
             String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
@@ -646,7 +600,7 @@ public class GameController extends NavigationAdapter {
                     case "submarino"  -> 3;
                     case "destructor" -> 2;
                     case "portaviones"-> 4;
-                    default           -> 1;
+                    default           -> 0;
                 };
                 for (int i = 0; i < size; i++) {
                     int r = s.getRow() + (s.isHorizontal() ? 0 : i);
@@ -676,6 +630,10 @@ public class GameController extends NavigationAdapter {
         }
         if (!playerTurn) return; //Bloqueamos si no es turno
 
+        if (!cell.getProperties().containsKey("row") || !cell.getProperties().containsKey("col")) {
+            throw new IllegalStateException("La celda no tiene coordenadas asignadas");
+        }
+
         // Coordenadas 0-based
         int row = (int) cell.getProperties().get("row");
         int col = (int) cell.getProperties().get("col");
@@ -692,7 +650,7 @@ public class GameController extends NavigationAdapter {
                 case "submarino" -> 3;
                 case "destructor"-> 2;
                 case "portaviones"->4;
-                default          -> 1;
+                default          -> 0;
             };
             for (int i = 0; i < size; i++) {
                 int r = s.getRow() + (s.isHorizontal() ? 0 : i);
@@ -752,7 +710,7 @@ public class GameController extends NavigationAdapter {
         if (hit) {
             drawHit(cell);     // puedes crear versiones para el jugador
             if (checkIfPlayerShipSunk(row, col)) {
-                drawSunkOnPlayer(row, col);
+                drawSunkOnPlayer();
                 playerShipsAlive--;
                 if (playerShipsAlive == 0) {
                     showEndgameDialog(false); //PERDISTE
@@ -770,53 +728,76 @@ public class GameController extends NavigationAdapter {
     }
 
     private void showEndgameDialog(boolean playerWon) {
-        // Ejecutar en el hilo de JavaFX
-        Platform.runLater(() -> {
-            // Nuevo Stage modal
-            Stage dialog = new Stage();
-            dialog.initModality(Modality.APPLICATION_MODAL);
-            dialog.setTitle(playerWon ? "¡Victoria!" : "Derrota");
+        Stage dialog = new Stage();
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle(playerWon ? "¡Victoria!" : "Derrota");
 
-            Label msg = new Label(playerWon ? "¡Ganaste! :)" : "¡Perdiste! :(");
-            msg.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        Label msg = new Label(playerWon ? "¡Ganaste! :)" : "¡Perdiste! :(");
+        msg.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
-            Button btnMenu = new Button("Volver al menú");
-            Button btnSalir = new Button("Salir del juego");
+        HBox botones = getHBox(dialog);
+        botones.setAlignment(Pos.CENTER);
 
-            btnMenu.setOnAction(e -> {
-                try {
-                    // Cargar start-view.fxml y obtener su controlador
-                    FXMLLoader loader = new FXMLLoader(
-                            getClass().getResource("/com/example/miniproyecto3/start-view.fxml")
-                    );
-                    Parent root = loader.load();
-                    StartController startCtrl = loader.getController();
-                    // Deshabilitar el botón Continuar
-                    startCtrl.disableContinueButton();
-                    // Reemplazar la escena actual
-                    Scene scene = new Scene(root);
-                    Stage primary = (Stage) gridBoard.getScene().getWindow();
-                    primary.setScene(scene);
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-                dialog.close();
-            });
+        VBox layout = new VBox(20, msg, botones);
+        layout.setPadding(new Insets(20));
+        layout.setAlignment(Pos.CENTER);
 
-            btnSalir.setOnAction(e -> {
-                Platform.exit();
-            });
+        dialog.setScene(new Scene(layout));
+        dialog.setOnHidden(e -> {
+            deleteGameFiles();
+            try {
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/example/miniproyecto3/start-view.fxml"));
+                Parent root = loader.load();
+                StartController startCtrl = loader.getController();
+                startCtrl.disableContinueButton();
 
-            HBox botones = new HBox(10, btnMenu, btnSalir);
-            botones.setAlignment(Pos.CENTER);
-
-            VBox layout = new VBox(20, msg, botones);
-            layout.setPadding(new Insets(20));
-            layout.setAlignment(Pos.CENTER);
-
-            dialog.setScene(new Scene(layout));
-            dialog.show();
+                Scene scene = new Scene(root);
+                Stage primary = (Stage) gridBoard.getScene().getWindow();
+                primary.setScene(scene);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
         });
+
+        dialog.show();
+    }
+
+    private void deleteGameFiles() {
+        String[] files = {"player_board.txt", "enemy_board.txt", "shots.txt", "enemy_shots.txt", "nickname.txt"};
+        for (String file : files) {
+            try {
+                Files.deleteIfExists(Paths.get(file));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    private HBox getHBox(Stage dialog) {
+        Button btnMenu = new Button("Volver al menú");
+        Button btnSalir = new Button("Salir del juego");
+
+        btnMenu.setOnAction(e -> {
+            try {
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/example/miniproyecto3/start-view.fxml"));
+                Parent root = loader.load();
+                StartController startCtrl = loader.getController();
+                startCtrl.disableContinueButton();
+
+                Scene scene = new Scene(root);
+                Stage primary = (Stage) gridBoard.getScene().getWindow();
+                primary.setScene(scene);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+            dialog.close();
+        });
+
+        btnSalir.setOnAction(e -> Platform.exit());
+
+        HBox botones = new HBox(10, btnMenu, btnSalir);
+        return botones;
     }
 //SISTEMA DE GUARDADO DE DISPAROS Y CARGADO DE LA IA.
 
@@ -861,9 +842,7 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-
 //------------------
-
 
     //Guardamos los disparos (ESTO ES DEL JUGADOR)
     private void saveShotsToFile() {
@@ -899,7 +878,7 @@ public class GameController extends NavigationAdapter {
                         case "submarino" -> 3;
                         case "destructor" -> 2;
                         case "portaviones" -> 4;
-                        default -> 1;
+                        default -> 0;
                     };
                     for (int i = 0; i < size; i++) {
                         int r = s.getRow() + (s.isHorizontal() ? 0 : i);
@@ -926,8 +905,9 @@ public class GameController extends NavigationAdapter {
                     }
                 }
             }
-        } catch (IOException ex) {
+        } catch (IOException | NumberFormatException ex) {
             ex.printStackTrace();
+            showFloatingMessage("Error al cargar los disparos");
         }
     }
 
@@ -952,7 +932,7 @@ public class GameController extends NavigationAdapter {
             case "submarino" -> 3;
             case "destructor"-> 2;
             case "portaviones"->4;
-            default          -> 1;
+            default          -> 0;
         };
         for (int i = 0; i < size; i++) {
             int r = s.getRow() + (s.isHorizontal() ? 0 : i);
@@ -1016,7 +996,7 @@ public class GameController extends NavigationAdapter {
             case "submarino"   -> new Submarino();
             case "destructor"  -> new Destructor();
             case "portaviones" -> new Portaviones();
-            default             -> null;
+            default             -> throw new IllegalArgumentException("Tipo de barco inválido: " + shipType); // ← no marcada;
         };
     }
 
@@ -1036,7 +1016,7 @@ public class GameController extends NavigationAdapter {
         countLabel.setUserData("label");
         shipBox.getChildren().add(countLabel);
 
-        Rectangle clone = new Rectangle(30, 30, (Color) ship.getParts()[0].getFill());
+        Rectangle clone = new Rectangle(30, 30, ship.getParts()[0].getFill());
         clone.setStroke(Color.BLACK);
         clone.setUserData(type);
 
@@ -1092,7 +1072,7 @@ public class GameController extends NavigationAdapter {
             db.setContent(content);
 
             //Crear miniatura
-            Rectangle preview = new Rectangle(30, 30, (Color) clone.getFill());
+            Rectangle preview = new Rectangle(30, 30, clone.getFill());
             WritableImage snapshot = preview.snapshot(new SnapshotParameters(), null);
             db.setDragView(snapshot);
 
@@ -1154,7 +1134,6 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-
     //METODO AUXILIAR
     private int countAliveShips(List<SavedShip> ships, Map<String, Integer> remainingParts) {
         int alive = 0;
@@ -1166,5 +1145,4 @@ public class GameController extends NavigationAdapter {
         }
         return alive;
     }
-
 }
