@@ -1,0 +1,10 @@
+submarino,0,9,V
+submarino,1,6,H
+fragata,3,6,H
+fragata,8,8,H
+fragata,2,6,H
+fragata,5,2,V
+destructor,7,3,H
+destructor,8,6,H
+destructor,8,4,H
+portaviones,6,3,H
