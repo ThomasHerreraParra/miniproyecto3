@@ -11,7 +11,10 @@ public class Portaviones extends Ship {
      * Constructor del portaviones. Usa color azul oscuro.
      */
     public Portaviones() {
-        super(4, Color.DARKBLUE);
+        super(4);
+    }
+    public String getType() {
+        return "portaviones";
     }
 }
 
