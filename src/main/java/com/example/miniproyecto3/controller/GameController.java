@@ -48,9 +48,9 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.scene.control.Button;
 import javafx.scene.image.Image;
-
 import javafx.scene.input.MouseButton;
 import javafx.scene.image.ImageView;
+import javax.sound.sampled.*;
 
 /**
  * Main game controller class that handles the naval battle game logic and UI interactions.
@@ -94,8 +94,11 @@ public class GameController extends NavigationAdapter {
     /**
      * Initializes the game controller and sets up the game boards.
      */
+    private BackgroundMusicPlayer musicPlayer;
     @FXML
     public void initialize() {
+        musicPlayer = new BackgroundMusicPlayer();
+        musicPlayer.playLoop();
         cleanDynamicElements(gridBoard);
         cleanDynamicElements(enemyBoard);
 
@@ -171,6 +174,24 @@ public class GameController extends NavigationAdapter {
             playerTurn = true;
             updateTurnLabel();
             shipSelectionArea.setDisable(true);
+        }
+    }
+
+    private class BackgroundMusicPlayer {
+        private Clip clip;
+
+        public void playLoop() {
+            try {
+                System.out.println("Intentando reproducir música...");
+                AudioInputStream audioIn = AudioSystem.getAudioInputStream(
+                        getClass().getResource("/com/example/miniproyecto3/assets/backgroundmusic.wav")
+                );
+                clip = AudioSystem.getClip();
+                clip.open(audioIn);
+                clip.loop(Clip.LOOP_CONTINUOUSLY);
+            } catch (Exception e) {
+                System.err.println("Error playing music: " + e.getMessage());
+            }
         }
     }
 
@@ -342,62 +363,6 @@ public class GameController extends NavigationAdapter {
             case "portaviones" -> 4;
             default -> throw new IllegalArgumentException("Tipo de barco inválido: " + type);
         };
-    }
-
-    /**
-     * Paints a ship on the game grid.
-     * @param grid The grid to paint on
-     * @param row The starting row
-     * @param col The starting column
-     * @param size The ship size
-     * @param horizontal Whether the ship is horizontal
-     * @param imagePath The path to the ship image
-     */
-    private void paintShipOnGrid(GridPane grid, int row, int col, int size, boolean horizontal, String imagePath) {
-        try {
-            Image image = new Image(getClass().getResourceAsStream(imagePath));
-            ImageView shipView = new ImageView(image);
-            shipView.setPreserveRatio(true);
-
-            if (horizontal) {
-                shipView.setFitWidth(size * 30);
-                shipView.setFitHeight(30);
-            } else {
-                shipView.setFitWidth(30);
-                shipView.setFitHeight(size * 30);
-            }
-
-            StackPane baseCell = getCellPaneAt(grid, row, col);
-            if (baseCell == null) return;
-
-            baseCell.getChildren().removeIf(child ->
-                    child instanceof ImageView ||
-                            (child instanceof Rectangle && "real".equals(((Rectangle)child).getUserData()))
-            );
-
-            StackPane shipContainer = new StackPane(shipView);
-            shipContainer.setPickOnBounds(false);
-
-            GridPane.setRowIndex(shipContainer, row + 1);
-            GridPane.setColumnIndex(shipContainer, col + 1);
-            GridPane.setRowSpan(shipContainer, horizontal ? 1 : size);
-            GridPane.setColumnSpan(shipContainer, horizontal ? size : 1);
-
-            grid.getChildren().add(shipContainer);
-
-            for (int i = 0; i < size; i++) {
-                int r = row + (horizontal ? 0 : i);
-                int c = col + (horizontal ? i : 0);
-                StackPane cell = getCellPaneAt(grid, r, c);
-                if (cell != null) {
-                    Rectangle marker = new Rectangle(30, 30, Color.TRANSPARENT);
-                    marker.setUserData("real");
-                    cell.getChildren().add(marker);
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Error al pintar barco: " + e.getMessage());
-        }
     }
 
     /**
