@@ -1,3 +1,16 @@
+/**
+ * Warship Dominions - Naval Battle Game
+ *
+ * Version: 1.0
+ * License: OpenGL
+ *
+ * Authors:
+ * - Yoel Steven Montoya (2416571)
+ * - Andrés Felipe Muñoz (2415124)
+ * - Thomas Herrera Parra (2417158)
+ */
+
+
 package com.example.miniproyecto3.controller;
 
 import com.example.miniproyecto3.storage.SavedShip;
@@ -14,13 +27,16 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import com.example.miniproyecto3.controller.PlacementException;
 
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
+/**
+ * Controller class responsible for initializing and managing the enemy board.
+ * This includes randomly placing ships, saving and loading board state,
+ * and displaying ship images according to orientation.
+ */
 public class EnemyController extends NavigationAdapter {
 
     @FXML
@@ -38,6 +54,10 @@ public class EnemyController extends NavigationAdapter {
             "portaviones", 1
     );
 
+    /**
+     * Initializes the enemy board. If a saved board exists, it loads and paints it.
+     * Otherwise, it generates a new one randomly.
+     */
     @FXML
     public void initialize() {
         createGrid();
@@ -49,6 +69,9 @@ public class EnemyController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Creates the visual 10x10 grid with labels and background color.
+     */
     private void createGrid() {
         for (int col = 0; col < GRID_SIZE; col++) {
             Label label = createLabel(String.valueOf(col + 1));
@@ -71,6 +94,11 @@ public class EnemyController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Creates a bold, centered label for rows and columns.
+     * @param text Text to display.
+     * @return A configured label node.
+     */
     private Label createLabel(String text) {
         Label label = new Label(text);
         label.setMinSize(CELL_SIZE, CELL_SIZE);
@@ -79,6 +107,9 @@ public class EnemyController extends NavigationAdapter {
         return label;
     }
 
+    /**
+     * Randomly places all ships on the board and saves the result.
+     */
     private void placeShipsRandomly() {
         Random rand = new Random();
         List<SavedShip> savedShips = new ArrayList<>();
@@ -110,7 +141,6 @@ public class EnemyController extends NavigationAdapter {
                         count--;
                     }
                 }
-
             }
 
             if (attempts >= 1000) {
@@ -126,7 +156,9 @@ public class EnemyController extends NavigationAdapter {
         saveBoard(savedShips);
     }
 
-
+    /**
+     * Generates a new enemy board and writes the ship layout to a file.
+     */
     public static void generateAndSaveEnemyBoard() {
         Random rand = new Random();
         List<SavedShip> savedShips = new ArrayList<>();
@@ -192,6 +224,10 @@ public class EnemyController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Saves the list of placed ships to file.
+     * @param ships List of ships to serialize.
+     */
     private void saveBoard(List<SavedShip> ships) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(SAVE_PATH))) {
             for (SavedShip ship : ships) {
@@ -204,6 +240,9 @@ public class EnemyController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Checks if a ship can be placed in the given location without overlapping.
+     */
     private boolean canPlaceShip(int row, int col, int size, boolean horizontal) {
         for (int i = 0; i < size; i++) {
             int r = row + (horizontal ? 0 : i);
@@ -217,6 +256,9 @@ public class EnemyController extends NavigationAdapter {
         return true;
     }
 
+    /**
+     * Paints a ship on the board using an image stretched across multiple cells.
+     */
     private void paintShip(int row, int col, int size, boolean horizontal, String imagePath) {
         Image image = new Image(getClass().getResourceAsStream(imagePath));
         ImageView shipView = new ImageView(image);
@@ -232,7 +274,6 @@ public class EnemyController extends NavigationAdapter {
         shipView.setPreserveRatio(false);
         shipView.setSmooth(true);
 
-        // Limpiar celdas
         for (int i = 0; i < size; i++) {
             int r = row + (horizontal ? 0 : i);
             int c = col + (horizontal ? i : 0);
@@ -252,7 +293,9 @@ public class EnemyController extends NavigationAdapter {
         enemyBoard.getChildren().add(imageContainer);
     }
 
-
+    /**
+     * Returns the StackPane representing the cell at a specific board coordinate.
+     */
     private StackPane getCell(int row, int col) {
         for (Node node : enemyBoard.getChildren()) {
             Integer column = GridPane.getColumnIndex(node);
@@ -265,6 +308,9 @@ public class EnemyController extends NavigationAdapter {
         throw new IllegalStateException("No se encontró la celda en [" + row + "," + col + "]");
     }
 
+    /**
+     * Gets the numeric size of a ship based on its type.
+     */
     private int getShipSize(String type) {
         return switch (type) {
             case "fragata" -> 1;
@@ -275,6 +321,9 @@ public class EnemyController extends NavigationAdapter {
         };
     }
 
+    /**
+     * Creates an instance of a Ship subclass based on a string type.
+     */
     private Ship createShipInstance(String type) {
         return switch (type) {
             case "fragata" -> new Fragata();
@@ -285,10 +334,16 @@ public class EnemyController extends NavigationAdapter {
         };
     }
 
+    /**
+     * Handles return to the game view.
+     */
     public void returnBoard(ActionEvent event) {
         goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
     }
 
+    /**
+     * Loads a list of ships from a saved file.
+     */
     private List<SavedShip> loadBoard(Path file) {
         List<SavedShip> ships = new ArrayList<>();
         try (BufferedReader br = Files.newBufferedReader(file)) {
@@ -302,12 +357,14 @@ public class EnemyController extends NavigationAdapter {
         return ships;
     }
 
+    /**
+     * Paints all ships previously saved in file onto the board using directional images.
+     */
     private void paintSavedShips(List<SavedShip> ships) {
         for (SavedShip s : ships) {
             int size = getShipSize(s.getType());
             String direccion;
 
-            // Deducción textual basada en orientación y posición
             if (s.isHorizontal()) {
                 direccion = (s.getCol() + size <= GRID_SIZE) ? "derecha" : "izquierda";
             } else {
@@ -319,19 +376,16 @@ public class EnemyController extends NavigationAdapter {
         }
     }
 
-
-
+    /**
+     * Returns the full image path for a ship based on orientation and direction.
+     */
     private static String getImagePath(String type, boolean horizontal, int row, int col, int size) {
         String direction;
-
         if (horizontal) {
-            // Si el barco cabe hacia la derecha, es "derecha", si no, "izquierda"
             direction = (col + size <= GRID_SIZE) ? "derecha" : "izquierda";
         } else {
             direction = (row + size <= GRID_SIZE) ? "abajo" : "arriba";
         }
-
         return "/com/example/miniproyecto3/assets/" + type.toLowerCase() + direction + ".png";
     }
-
 }

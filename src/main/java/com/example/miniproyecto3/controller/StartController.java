@@ -1,3 +1,15 @@
+/**
+ * Warship Dominions - Naval Battle Game
+ *
+ * Version: 1.0
+ * License: Educational Use Only
+ *
+ * Authors:
+ * - Yoel Steven Montoya (2416571)
+ * - Andrés Felipe Muñoz (2415124)
+ * - Thomas Herrera Parra (2417158)
+ */
+
 package com.example.miniproyecto3.controller;
 
 import javafx.event.ActionEvent;
@@ -12,21 +24,31 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+/**
+ * Controller for the main start menu of the game.
+ * Handles nickname entry, new game creation, continuing previous games,
+ * and navigation to instructions or exit.
+ */
 public class StartController extends NavigationAdapter {
 
     @FXML private Button btnPlay;
     @FXML private Button btnContinue;
     @FXML private Button btnNewGame;
     @FXML private Button btnInstructions;
+
     private static final String NICKNAME_PATH = "nickname.txt";
     private static final String PLAYER_SAVE_PATH = "player_board.txt";
     private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
     private static final String SHOTS_SAVE_PATH = "shots.txt";
-    private static final String ENEMY_SHOTS_SAVE_PATH = "enemy_shots.txt";  //Disparos hechos hacia el enemigo
+    private static final String ENEMY_SHOTS_SAVE_PATH = "enemy_shots.txt";
+
     private boolean hasOngoingGame;
 
-    /** Indica si ya se pulsó “Jugar” ó “Nueva partida” en esta sesión */
-    //Metodo auxiliar para solicitar y guardar el nickname
+    /**
+     * Prompts the user to enter a nickname and saves it to disk.
+     *
+     * @return An Optional containing the nickname if successfully entered and saved.
+     */
     private Optional<String> promptAndSaveNickname() {
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Ingrese Nickname");
@@ -49,7 +71,10 @@ public class StartController extends NavigationAdapter {
         return result;
     }
 
-
+    /**
+     * Initializes the state of the main menu by checking saved game files
+     * and adjusting button states accordingly.
+     */
     @FXML
     private void initialize() {
         boolean savedGameExists =
@@ -58,7 +83,6 @@ public class StartController extends NavigationAdapter {
                         Files.exists(Paths.get(ENEMY_SAVE_PATH));
 
         if (!savedGameExists) {
-            // Si no hay partida en memoria, borra archivos viejos al iniciar
             try {
                 Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
                 Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
@@ -80,13 +104,19 @@ public class StartController extends NavigationAdapter {
         btnContinue.setDisable(!(savedOnDisk || hasOngoingGame));
         btnPlay.setDisable(hasOngoingGame);
         btnInstructions.setDisable(false);
-        btnNewGame .setDisable(!(savedOnDisk || hasOngoingGame));
+        btnNewGame.setDisable(!(savedOnDisk || hasOngoingGame));
     }
 
+    /**
+     * Handles the "Play" button click. Prompts for nickname, clears previous saves,
+     * generates a new enemy board and navigates to the game view.
+     *
+     * @param event Action event triggered by the button click.
+     */
     @FXML
     private void onPlayClicked(ActionEvent event) {
         if (promptAndSaveNickname().isEmpty()) return;
-        //borrar cualquier archivo viejo (tableros o disparos)
+
         try {
             Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
             Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
@@ -97,24 +127,23 @@ public class StartController extends NavigationAdapter {
             return;
         }
 
-
-        //generar un nuevo tablero enemigo
         EnemyController.generateAndSaveEnemyBoard();
-
-
-        //Marcamos que hay partida en memoria y vamos a la vista
         hasOngoingGame = true;
         goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
     }
 
+    /**
+     * Handles the "Continue" button click. Loads an existing game from memory or disk.
+     *
+     * @param event Action event triggered by the button click.
+     */
     @FXML
     private void handleContinue(ActionEvent event) {
         if (hasOngoingGame) {
-            // vuelve a la partida en memoria
             goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
             return;
         }
-        // si no hay en memoria, intenta cargar desde disco
+
         Path p1 = Paths.get(PLAYER_SAVE_PATH);
         Path p2 = Paths.get(ENEMY_SAVE_PATH);
         if (Files.exists(p1) && Files.exists(p2)) {
@@ -124,15 +153,24 @@ public class StartController extends NavigationAdapter {
         }
     }
 
-    /** Invocado desde GameController para deshabilitar Continuar */
+    /**
+     * Disables the "Continue" button from other controllers.
+     * Typically called when save data is deleted.
+     */
     public void disableContinueButton() {
         btnContinue.setDisable(true);
     }
 
+    /**
+     * Handles the "New Game" button click. Prompts for nickname, deletes all
+     * save data and generates a new enemy board.
+     *
+     * @param event Action event triggered by the button click.
+     */
     @FXML
     private void handleNewGame(ActionEvent event) {
         if (promptAndSaveNickname().isEmpty()) return;
-        // eliminar guardados en disco
+
         try {
             Files.deleteIfExists(Paths.get(PLAYER_SAVE_PATH));
             Files.deleteIfExists(Paths.get(ENEMY_SAVE_PATH));
@@ -143,17 +181,27 @@ public class StartController extends NavigationAdapter {
             ex.printStackTrace();
             return;
         }
-        // generar nuevo tablero enemigo
+
         EnemyController.generateAndSaveEnemyBoard();
         hasOngoingGame = true;
         goTo("/com/example/miniproyecto3/game-view.fxml", (Node) event.getSource());
     }
 
+    /**
+     * Handles the "Instructions" button click. Navigates to the instructions view.
+     *
+     * @param event Action event triggered by the button click.
+     */
     @FXML
     private void onInstructionsClicked(ActionEvent event) {
         goTo("/com/example/miniproyecto3/instructions-view.fxml", (Node) event.getSource());
     }
 
+    /**
+     * Handles the "Exit" button click. Terminates the application.
+     *
+     * @param event Action event triggered by the button click.
+     */
     @FXML
     private void onExitClicked(ActionEvent event) {
         System.exit(0);
