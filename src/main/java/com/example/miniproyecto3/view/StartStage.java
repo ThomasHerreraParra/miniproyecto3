@@ -1,3 +1,14 @@
+/**
+ * Warship Dominions - Naval Battle Game
+ *
+ * Version: 1.0
+ * License: Educational Use Only
+ *
+ * Authors:
+ * - Yoel Steven Montoya (2416571)
+ * - Andrés Felipe Muñoz (2415124)
+ * - Thomas Herrera Parra (2417158)
+ */
 package com.example.miniproyecto3.view;
 
 import javafx.fxml.FXMLLoader;
@@ -7,24 +18,28 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 
+/**
+ * Custom JavaFX Stage that displays the main start screen of the game.
+ */
 public class StartStage extends Stage {
 
+    /**
+     * Constructs a new StartStage, loading the start view from its FXML file
+     * and setting the stage to full screen.
+     */
     public StartStage() {
         try {
-            // Carga el archivo FXML de la pantalla de inicio
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/example/miniproyecto3/start-view.fxml"));
             Parent root = loader.load();
 
-            // Crea y muestra la escena
             Scene scene = new Scene(root);
             this.setScene(scene);
-            //Pantalla Completa
             this.setFullScreen(true);
             this.setTitle("Batalla Naval - Inicio");
 
             setScene(scene);
         } catch (IOException e) {
-            e.printStackTrace(); // Muestra el error si el archivo FXML no se carga correctamente
+            e.printStackTrace();
         }
     }
 }

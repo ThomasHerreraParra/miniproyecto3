@@ -1,3 +1,14 @@
+/**
+ * Warship Dominions - Naval Battle Game
+ *
+ * Version: 1.0
+ * License: OpenGL
+ *
+ * Authors:
+ * - Yoel Steven Montoya (2416571)
+ * - Andrés Felipe Muñoz (2415124)
+ * - Thomas Herrera Parra (2417158)
+ */
 package com.example.miniproyecto3.controller;
 
 import com.example.miniproyecto3.storage.SavedShip;
@@ -5,7 +16,7 @@ import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.geometry.Pos;
+import javafx.geometry.*;
 import javafx.scene.Node;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.control.Alert;
@@ -36,53 +47,58 @@ import javafx.scene.Scene;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.scene.control.Button;
-import javafx.geometry.Insets;
 import javafx.scene.image.Image;
 
 import javafx.scene.input.MouseButton;
 import javafx.scene.image.ImageView;
 
+/**
+ * Main game controller class that handles the naval battle game logic and UI interactions.
+ */
 public class GameController extends NavigationAdapter {
 
     @FXML private GridPane gridBoard;
     @FXML private GridPane enemyBoard;
     @FXML private VBox shipSelectionArea;
-    @FXML private Label textFloat; // Referencia al mensaje flotante en la interfaz
+    @FXML private Label textFloat;
     @FXML private Label lblWelcome;
     private boolean playerTurn = false;
     @FXML private Label lblTurn;
-    // Para los disparos de la IA
-    private final Set<String> firedByEnemy = new HashSet<>();
-// Contador de barcos del jugador (inicialízalo igual que enemyShipsAlive)
-    private int playerShipsAlive;
 
+    private final Set<String> firedByEnemy = new HashSet<>();
+    private int playerShipsAlive;
     private final Map<String, Integer> playerRemainingParts = new HashMap<>();
-    private final Map<String, Integer> shipCounts = new HashMap<>(); // Stock de barcos por tipo
-    private Label activeCountLanbel = null;     //Variable que almacena el contador del barco actualmente siendo arrastrado
-    private static final String SHOTS_SAVE_PATH = "shots.txt"; //Archivo plano para guardar los disparos
-    private static final String ENEMY_SHOTS_SAVE_PATH = "enemy_shots.txt";  //Disparos hechos hacia el enemigo
-    private static final String PLAYER_SAVE_PATH = "player_board.txt"; //Costantes para guardar archivos
+    private final Map<String, Integer> shipCounts = new HashMap<>();
+    private Label activeCountLanbel = null;
+    private static final String SHOTS_SAVE_PATH = "shots.txt";
+    private static final String ENEMY_SHOTS_SAVE_PATH = "enemy_shots.txt";
+    private static final String PLAYER_SAVE_PATH = "player_board.txt";
     private static final String ENEMY_SAVE_PATH  = "enemy_board.txt";
-    private final List<SavedShip> playerShips = new ArrayList<>(); //Lista donde se ira almacenando los barcos del jugador
+    private final List<SavedShip> playerShips = new ArrayList<>();
     private final List<SavedShip> enemyShips  = new ArrayList<>();
-    private String selectedShipType = null; //Variable para manejar la seleccion por click
-    private enum Direction {RIGHT, DOWN, LEFT, UP}  //Variable para la orientacion
-    private Direction currentDirection = Direction.RIGHT; //Direccion por defecto del barco
-    //Disparos
-    private final Map<String, Integer> enemyRemainingParts = new HashMap<>();  // shipId → partes vivas
-    private final Set<String>           firedCells         = new HashSet<>(); // "r,c" ya disparado
-    private int                         enemyShipsAlive    = 0;
+    private String selectedShipType = null;
+    private enum Direction {RIGHT, DOWN, LEFT, UP}
+    private Direction currentDirection = Direction.RIGHT;
+    private final Map<String, Integer> enemyRemainingParts = new HashMap<>();
+    private final Set<String> firedCells = new HashSet<>();
+    private int enemyShipsAlive = 0;
+
+    /**
+     * Checks if all ships have been placed on the board.
+     * @return true if all ships are placed, false otherwise
+     */
     private boolean allShipsPlaced() {
         return shipCounts.values().stream().allMatch(count -> count == 0);
     }
 
+    /**
+     * Initializes the game controller and sets up the game boards.
+     */
     @FXML
     public void initialize() {
-
         cleanDynamicElements(gridBoard);
         cleanDynamicElements(enemyBoard);
 
-        //Mostrar nickname
         try {
             Path nickPath = Paths.get("nickname.txt");
             if (Files.exists(nickPath)) {
@@ -94,74 +110,63 @@ public class GameController extends NavigationAdapter {
         } catch (IOException e) {
             lblWelcome.setText("Bienvenido, capitán");
         }
+
         firedCells.clear();
         enemyRemainingParts.clear();
         playerRemainingParts.clear();
         enemyShipsAlive = 0;
         playerShipsAlive = 0;
-        // Inicializar contadores
+
         shipCounts.put("fragata", 4);
         shipCounts.put("destructor", 3);
         shipCounts.put("submarino", 2);
         shipCounts.put("portaviones", 1);
-        createGrid(gridBoard, false);  // tablero del jugador
-        createGrid(enemyBoard, true);  // tablero del enemigo
+        createGrid(gridBoard, false);
+        createGrid(enemyBoard, true);
         loadShips();
 
-
-        //Si el archivo guardado existe entonces carga los tableros cargados
         Path playerFile = Paths.get(PLAYER_SAVE_PATH);
         Path enemyFile  = Paths.get(ENEMY_SAVE_PATH);
 
-        /* 1️⃣ Pintamos SOLO el tablero del jugador */
         if (Files.exists(playerFile)) {
-            //Pintar, y ademas obtenemos la lista para ajustar contadores
-            List<SavedShip> alreadyPlaced = loadBoardFromFile(PLAYER_SAVE_PATH, gridBoard, true);   // paint = true
+            List<SavedShip> alreadyPlaced = loadBoardFromFile(PLAYER_SAVE_PATH, gridBoard, true);
             playerShips.addAll(alreadyPlaced);
 
             System.out.println("Barcos del jugador cargados: " + playerShips.size());
-            //Restar del stock todos los barcos que ya estaban colocados
             for (SavedShip s : alreadyPlaced) {
                 shipCounts.put(s.getType(), shipCounts.get(s.getType()) - 1);
                 System.out.println("Partes vivas del jugador: " + playerRemainingParts.size());
-
                 boatSize(s, playerRemainingParts);
             }
 
             refreshAllCounters();
-            //Deshabilitamos seleccion si ya no queda ninguno
             boolean allPlaced = shipCounts.values().stream().allMatch(v -> v == 0);
             shipSelectionArea.setDisable(allPlaced);
         }
 
-        /*Cargamos PERO NO pintamos el tablero enemigo */
         if (Files.exists(enemyFile)) {
-            enemyShips.addAll(loadBoardFromFile(ENEMY_SAVE_PATH, null, false)); // paint=false
-            //Inicializar cotador de partes vivas
+            enemyShips.addAll(loadBoardFromFile(ENEMY_SAVE_PATH, null, false));
             for (SavedShip s : enemyShips) {
                 boatSize(s, enemyRemainingParts);
             }
             enemyShipsAlive = enemyRemainingParts.size();
         }
-        // Cargamos disparos previos
+
         loadShotsFromFile();
         loadEnemyShotsFromFile();
 
-
-// ⬇️ AGREGA ESTO AQUÍ
         enemyShipsAlive = countAliveShips(enemyShips, enemyRemainingParts);
         if (playerShips.isEmpty() || playerRemainingParts.isEmpty()) {
             System.out.println("⚠️ No hay barcos del jugador cargados o no se cargaron correctamente");
-            return; // Evita que se muestre "perdiste" por error
+            return;
         }
-        playerShipsAlive = countAliveShips(playerShips, playerRemainingParts); // o usa tu mapa playerRemainingParts
+        playerShipsAlive = countAliveShips(playerShips, playerRemainingParts);
         if (enemyShipsAlive == 0) {
             showEndgameDialog(true);
         } else if (playerShipsAlive == 0) {
             showEndgameDialog(false);
         }
 
-        // Si venimos de una partida guardada ya lista...
         if (allShipsPlaced()) {
             playerTurn = true;
             updateTurnLabel();
@@ -169,20 +174,21 @@ public class GameController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Cleans dynamic elements from the game board.
+     * @param board The game board to clean
+     */
     private void cleanDynamicElements(GridPane board) {
         if (board == null) return;
 
-        // Mantener solo las celdas base y etiquetas
         for (Node node : new ArrayList<>(board.getChildren())) {
             if (node instanceof StackPane) {
                 StackPane cell = (StackPane) node;
-                // Mantener el fondo pero limpiar elementos dinámicos
                 cell.getChildren().removeIf(child ->
                         child instanceof ImageView ||
                                 (child instanceof Rectangle && "real".equals(((Rectangle)child).getUserData()))
                 );
 
-                // Restaurar propiedades esenciales si es el tablero enemigo
                 if (board == enemyBoard) {
                     Integer row = GridPane.getRowIndex(cell);
                     Integer col = GridPane.getColumnIndex(cell);
@@ -196,6 +202,11 @@ public class GameController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Calculates the size of a ship and stores it in the remaining parts map.
+     * @param s The ship to calculate size for
+     * @param playerRemainingParts The map to store remaining parts
+     */
     private void boatSize(SavedShip s, Map<String, Integer> playerRemainingParts) {
         int size = switch (s.getType()) {
             case "fragata" -> 1;
@@ -208,22 +219,42 @@ public class GameController extends NavigationAdapter {
         playerRemainingParts.put(shipId, size);
     }
 
+    /**
+     * Updates the turn label based on whose turn it is.
+     */
     private void updateTurnLabel() {
         String nick = "capitán";
         try {
             nick = "capitán " + Files.readString(Paths.get("nickname.txt")).trim();
-        } catch (IOException e) { /* ignorar */ }
+        } catch (IOException e) { /* ignore */ }
         lblTurn.setText(playerTurn
                 ? "Es tu turno de disparar, " + nick
                 : "Turno de la máquina...");
     }
 
+    /**
+     * Handles back button action.
+     * @param event The action event
+     */
+    public void handleBack(ActionEvent event) {
+        goTo("/com/example/miniproyecto3/start-view.fxml", (Node) event.getSource());
+    }
 
-    public void handleBack(ActionEvent event) {goTo("/com/example/miniproyecto3/start-view.fxml", (Node) event.getSource());}
-    public void handlenemy(ActionEvent event) {goTo("/com/example/miniproyecto3/enemy-view.fxml", (Node) event.getSource());}
+    /**
+     * Handles enemy view button action.
+     * @param event The action event
+     */
+    public void handlenemy(ActionEvent event) {
+        goTo("/com/example/miniproyecto3/enemy-view.fxml", (Node) event.getSource());
+    }
 
-
-    // Nuevo metodo loadBoardFromFile con flag paint
+    /**
+     * Loads a game board from file.
+     * @param path The file path to load from
+     * @param target The target grid pane
+     * @param paint Whether to paint the ships on the board
+     * @return List of loaded ships
+     */
     private List<SavedShip> loadBoardFromFile(String path, GridPane target, boolean paint) {
         List<SavedShip> ships = new ArrayList<>();
 
@@ -242,7 +273,6 @@ public class GameController extends NavigationAdapter {
 
                 if (!paint || target == null) continue;
 
-                // Verificar que la celda base existe
                 StackPane baseCell = getCellPaneAt(target, row, col);
                 if (baseCell == null) {
                     System.err.println("Celda base no encontrada en [" + row + "," + col + "]");
@@ -279,7 +309,6 @@ public class GameController extends NavigationAdapter {
 
                     target.getChildren().add(container);
 
-                    // Marcar celdas como ocupadas
                     for (int i = 0; i < size; i++) {
                         int r = row + (horiz ? 0 : i);
                         int c = col + (horiz ? i : 0);
@@ -300,6 +329,11 @@ public class GameController extends NavigationAdapter {
         return ships;
     }
 
+    /**
+     * Gets the size of a ship based on its type.
+     * @param type The ship type
+     * @return The size of the ship
+     */
     private int getShipSize(String type) {
         return switch (type.toLowerCase()) {
             case "fragata"     -> 1;
@@ -310,7 +344,15 @@ public class GameController extends NavigationAdapter {
         };
     }
 
-
+    /**
+     * Paints a ship on the game grid.
+     * @param grid The grid to paint on
+     * @param row The starting row
+     * @param col The starting column
+     * @param size The ship size
+     * @param horizontal Whether the ship is horizontal
+     * @param imagePath The path to the ship image
+     */
     private void paintShipOnGrid(GridPane grid, int row, int col, int size, boolean horizontal, String imagePath) {
         try {
             Image image = new Image(getClass().getResourceAsStream(imagePath));
@@ -325,21 +367,17 @@ public class GameController extends NavigationAdapter {
                 shipView.setFitHeight(size * 30);
             }
 
-            // Obtener la celda base
             StackPane baseCell = getCellPaneAt(grid, row, col);
             if (baseCell == null) return;
 
-            // Limpiar solo elementos dinámicos de la celda
             baseCell.getChildren().removeIf(child ->
                     child instanceof ImageView ||
                             (child instanceof Rectangle && "real".equals(((Rectangle)child).getUserData()))
             );
 
-            // Crear contenedor para el barco
             StackPane shipContainer = new StackPane(shipView);
             shipContainer.setPickOnBounds(false);
 
-            // Configurar posición y span
             GridPane.setRowIndex(shipContainer, row + 1);
             GridPane.setColumnIndex(shipContainer, col + 1);
             GridPane.setRowSpan(shipContainer, horizontal ? 1 : size);
@@ -347,7 +385,6 @@ public class GameController extends NavigationAdapter {
 
             grid.getChildren().add(shipContainer);
 
-            // Marcar celdas como ocupadas
             for (int i = 0; i < size; i++) {
                 int r = row + (horizontal ? 0 : i);
                 int c = col + (horizontal ? i : 0);
@@ -363,7 +400,9 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-    //Metodo para guardar el tablero del jugador
+    /**
+     * Saves the player's board to file.
+     */
     private void savePlayerBoard() {
         try (BufferedWriter w = Files.newBufferedWriter(Paths.get(PLAYER_SAVE_PATH))) {
             for (SavedShip s : playerShips) {
@@ -376,7 +415,15 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-    //Ayudante del metodo de arrriba
+    /**
+     * Converts ship parameters to a SavedShip object.
+     * @param type The ship type
+     * @param rowClick The row position
+     * @param colClick The column position
+     * @param size The ship size
+     * @param dir The ship direction
+     * @return The created SavedShip object
+     */
     private SavedShip toSavedShip(String type, int rowClick, int colClick, int size, Direction dir) {
         boolean horizontal = (dir == Direction.RIGHT || dir == Direction.LEFT);
         int startRow = (dir == Direction.UP)    ? rowClick - size + 1 : rowClick;
@@ -384,7 +431,13 @@ public class GameController extends NavigationAdapter {
         return new SavedShip(type, startRow, startCol, horizontal);
     }
 
-
+    /**
+     * Gets the StackPane cell at specified coordinates.
+     * @param board The game board
+     * @param row The row index
+     * @param col The column index
+     * @return The StackPane cell or null if not found
+     */
     private StackPane getCellPaneAt(GridPane board, int row, int col) {
         for (Node n : board.getChildren()) {
             if (n instanceof StackPane sp) {
@@ -398,9 +451,13 @@ public class GameController extends NavigationAdapter {
         return null;
     }
 
+    /**
+     * Creates the game grid.
+     * @param targetGrid The target grid pane
+     * @param isEnemy Whether it's the enemy grid
+     */
     private void createGrid(GridPane targetGrid, boolean isEnemy) {
-        // Solo crear la grilla si está vacía
-        if (targetGrid.getChildren().size() > 20) { // Ya tiene celdas (10 columnas + 10 filas + algunas celdas)
+        if (targetGrid.getChildren().size() > 20) {
             return;
         }
 
@@ -408,7 +465,6 @@ public class GameController extends NavigationAdapter {
         int numCols = 10;
         int cellSize = 50;
 
-        // Etiquetas de columna (1-10)
         for (int col = 0; col < numCols; col++) {
             Label label = new Label(String.valueOf(col + 1));
             label.setMinSize(cellSize, cellSize);
@@ -417,7 +473,6 @@ public class GameController extends NavigationAdapter {
             targetGrid.add(label, col + 1, 0);
         }
 
-        // Etiquetas de fila (A-J)
         for (int row = 0; row < numRows; row++) {
             Label label = new Label(String.valueOf((char) ('A' + row)));
             label.setMinSize(cellSize, cellSize);
@@ -426,7 +481,6 @@ public class GameController extends NavigationAdapter {
             targetGrid.add(label, 0, row + 1);
         }
 
-        // Celdas del tablero
         for (int row = 0; row < numRows; row++) {
             for (int col = 0; col < numCols; col++) {
                 StackPane cell = new StackPane();
@@ -450,6 +504,10 @@ public class GameController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Sets up player cell behavior including click and hover events.
+     * @param cell The cell to set up
+     */
     private void setupPlayerCellBehavior(StackPane cell) {
         cell.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.SECONDARY) {
@@ -547,7 +605,6 @@ public class GameController extends NavigationAdapter {
             }
         });
 
-        // Sombra o previsualización
         cell.setOnMouseMoved(e -> previewShipPlacement(cell));
         cell.setOnMouseEntered(e -> previewShipPlacement(cell));
         cell.setOnMouseExited(e -> {
@@ -561,7 +618,13 @@ public class GameController extends NavigationAdapter {
         });
     }
 
-
+    /**
+     * Places a ship on the game board.
+     * @param ship The ship to place
+     * @param size The ship size
+     * @param row0 The starting row
+     * @param col0 The starting column
+     */
     private void placeShipOnBoard(Ship ship, int size, int row0, int col0) {
         String type = ship.getClass().getSimpleName().toLowerCase();
         String imagePath = getImagePath(type, currentDirection);
@@ -581,7 +644,6 @@ public class GameController extends NavigationAdapter {
         StackPane container = new StackPane(shipView);
         container.setPickOnBounds(false);
 
-        // Calcular posición base según dirección
         int baseRow = row0;
         int baseCol = col0;
         switch (currentDirection) {
@@ -598,7 +660,6 @@ public class GameController extends NavigationAdapter {
 
         gridBoard.getChildren().add(container);
 
-        // Marcar celdas como ocupadas
         for (int i = 0; i < size; i++) {
             int r = row0, c = col0;
             switch (currentDirection) {
@@ -618,9 +679,12 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-    //-----METODOS DE CHEQUEO DE IMPACTOS Y HUNDIDOS EN EL TABLERO DEL JUGADOR
-
-    /** Devuelve true si la IA ha acertado en (row,col) sobre el jugador */
+    /**
+     * Checks if the AI hit a player ship at specified coordinates.
+     * @param row The row to check
+     * @param col The column to check
+     * @return true if hit, false otherwise
+     */
     private boolean checkPlayerShipHit(int row, int col) {
         for (SavedShip s : playerShips) {
             int size = switch (s.getType()) {
@@ -634,7 +698,6 @@ public class GameController extends NavigationAdapter {
                 int r = s.getRow() + (s.isHorizontal() ? 0 : i);
                 int c = s.getCol() + (s.isHorizontal() ? i : 0);
                 if (r == row && c == col) {
-                    // Reducir partes vivas del barco
                     String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
                     int rem = playerRemainingParts.getOrDefault(shipId, size) - 1;
                     playerRemainingParts.put(shipId, rem);
@@ -645,7 +708,12 @@ public class GameController extends NavigationAdapter {
         return false;
     }
 
-    /** Devuelve true si tras este impacto acabamos de hundir el barco al que pertenece (row,col) */
+    /**
+     * Checks if a player ship was sunk at specified coordinates.
+     * @param row The row to check
+     * @param col The column to check
+     * @return true if sunk, false otherwise
+     */
     private boolean checkIfPlayerShipSunk(int row, int col) {
         for (SavedShip s : playerShips) {
             int size = switch (s.getType()) {
@@ -666,12 +734,11 @@ public class GameController extends NavigationAdapter {
         }
         return false;
     }
-    //-------------------------------
 
-    //Dibujar barco hundido en el tablero del jugador
-    /** Dibuja el barco hundido (todas sus casillas) sobre gridBoard */
+    /**
+     * Draws a sunk ship on the player's board.
+     */
     private void drawSunkOnPlayer() {
-        // Encuentra la SavedShip cuyo id coincide con el que acabamos de hundir
         for (SavedShip s : playerShips) {
             String shipId = s.getType() + "_" + s.getRow() + "_" + s.getCol();
             if (enemyRemainingParts.getOrDefault(shipId, 1) == 0) {
@@ -694,8 +761,11 @@ public class GameController extends NavigationAdapter {
             }
         }
     }
-    //-------------
 
+    /**
+     * Draws an explosion effect on a cell.
+     * @param cell The cell to draw on
+     */
     private void drawExplosion(StackPane cell) {
         Image explosionImage = new Image(getClass().getResourceAsStream("/com/example/miniproyecto3/assets/explosion.png"));
         ImageView explosionView = new ImageView(explosionImage);
@@ -703,16 +773,16 @@ public class GameController extends NavigationAdapter {
         explosionView.setFitHeight(30);
         cell.getChildren().add(explosionView);
 
-        // Puedes hacer que desaparezca luego de un tiempo si quieres un efecto temporal:
         PauseTransition pause = new PauseTransition(Duration.seconds(0.5));
         pause.setOnFinished(e -> cell.getChildren().remove(explosionView));
         pause.play();
     }
 
-
-    //Encargado de pum pum
+    /**
+     * Handles a shot on the enemy board.
+     * @param cell The cell that was shot
+     */
     private void handleShot(StackPane cell) {
-        // ❌ Impedir disparos si no se han colocado todos los barcos
         if (!allShipsPlaced()) {
             try {
                 String nick = Files.readString(Paths.get("nickname.txt")).trim();
@@ -722,24 +792,21 @@ public class GameController extends NavigationAdapter {
             }
             return;
         }
-        if (!playerTurn) return; //Bloqueamos si no es turno
+        if (!playerTurn) return;
 
         if (!cell.getProperties().containsKey("row") || !cell.getProperties().containsKey("col")) {
             throw new IllegalStateException("La celda no tiene coordenadas asignadas");
         }
 
-        // Coordenadas 0-based
         int row = (int) cell.getProperties().get("row");
         int col = (int) cell.getProperties().get("col");
         String key = row + "," + col;
 
         drawExplosion(cell);
 
-        // Ya disparado
         if (firedCells.contains(key)) return;
         firedCells.add(key);
 
-        /*¿Hay un barco en esa casilla? */
         Optional<SavedShip> hitShip = enemyShips.stream().filter(s -> {
             int size = switch (s.getType()) {
                 case "fragata"   -> 1;
@@ -757,10 +824,8 @@ public class GameController extends NavigationAdapter {
         }).findFirst();
 
         if (hitShip.isEmpty()) {
-            /* --------------- AGUA --------------- */
             drawMiss(cell);
         } else {
-            // TOCADO / HUNDIDO
             SavedShip ship = hitShip.get();
             String shipId = ship.getType() + "_" + ship.getRow() + "_" + ship.getCol();
             int partsLeft = enemyRemainingParts.get(shipId) - 1;
@@ -770,8 +835,8 @@ public class GameController extends NavigationAdapter {
                 drawSunk(ship);
                 enemyShipsAlive--;
                 if (enemyShipsAlive == 0) {
-                    showEndgameDialog(true); //GANASTE
-                    return;  // fin de juego
+                    showEndgameDialog(true);
+                    return;
                 }
             } else {
                 drawHit(cell);
@@ -779,7 +844,6 @@ public class GameController extends NavigationAdapter {
         }
         saveShotsToFile();
 
-        // ————————— Cambio de turno SIEMPRE —————————
         playerTurn = false;
         updateTurnLabel();
         PauseTransition pause = new PauseTransition(Duration.seconds(1));
@@ -787,7 +851,9 @@ public class GameController extends NavigationAdapter {
         pause.play();
     }
 
-    //Metodo de disparos de la maquina
+    /**
+     * Handles the AI's turn.
+     */
     private void enemyTurn() {
         try {
             int row, col;
@@ -810,11 +876,9 @@ public class GameController extends NavigationAdapter {
 
             firedByEnemy.add(key);
 
-            // Verificación robusta de la celda
             StackPane cell = getCellPaneAt(gridBoard, row, col);
             if (cell == null) {
                 System.err.println("Error: Celda nula en [" + row + "," + col + "]");
-                // Reconstruir la grilla si es necesario
                 rebuildGridIfNeeded();
                 playerTurn = true;
                 updateTurnLabel();
@@ -847,6 +911,9 @@ public class GameController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Rebuilds the grid if needed.
+     */
     private void rebuildGridIfNeeded() {
         System.out.println("Reconstruyendo grilla...");
         cleanDynamicElements(gridBoard);
@@ -856,6 +923,10 @@ public class GameController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Shows the endgame dialog.
+     * @param playerWon Whether the player won
+     */
     private void showEndgameDialog(boolean playerWon) {
         Stage dialog = new Stage();
         dialog.initModality(Modality.APPLICATION_MODAL);
@@ -891,6 +962,9 @@ public class GameController extends NavigationAdapter {
         dialog.show();
     }
 
+    /**
+     * Deletes all game files.
+     */
     private void deleteGameFiles() {
         String[] files = {"player_board.txt", "enemy_board.txt", "shots.txt", "enemy_shots.txt", "nickname.txt"};
         for (String file : files) {
@@ -902,7 +976,11 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-
+    /**
+     * Creates an HBox with menu and exit buttons.
+     * @param dialog The dialog to close
+     * @return The created HBox
+     */
     private HBox getHBox(Stage dialog) {
         Button btnMenu = new Button("Volver al menú");
         Button btnSalir = new Button("Salir del juego");
@@ -928,9 +1006,10 @@ public class GameController extends NavigationAdapter {
         HBox botones = new HBox(10, btnMenu, btnSalir);
         return botones;
     }
-//SISTEMA DE GUARDADO DE DISPAROS Y CARGADO DE LA IA.
 
-    /** Guarda en disco los disparos de la IA en firedByEnemy */
+    /**
+     * Saves AI shots to file.
+     */
     private void saveEnemyShotsToFile() {
         try (BufferedWriter w = Files.newBufferedWriter(Paths.get(ENEMY_SHOTS_SAVE_PATH))) {
             for (String shot : firedByEnemy) {
@@ -942,7 +1021,9 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-    /** Carga los disparos de la IA al arrancar la pantalla */
+    /**
+     * Loads AI shots from file.
+     */
     private void loadEnemyShotsFromFile() {
         Path p = Paths.get(ENEMY_SHOTS_SAVE_PATH);
         if (!Files.exists(p)) return;
@@ -955,12 +1036,9 @@ public class GameController extends NavigationAdapter {
                 int col = Integer.parseInt(parts[1]);
                 String key = row + "," + col;
                 firedByEnemy.add(key);
-                // Dibuja el resultado en gridBoard
                 StackPane cell = getCellPaneAt(gridBoard, row, col);
                 boolean hit = checkPlayerShipHit(row, col);
                 if (hit) {
-                    // si ya estaba hundido no queremos dibujar doble,
-                    // pero para simplificar, usamos drawHit:
                     drawHit(cell);
                 } else {
                     drawMiss(cell);
@@ -971,13 +1049,13 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-//------------------
-
-    //Guardamos los disparos (ESTO ES DEL JUGADOR)
+    /**
+     * Saves player shots to file.
+     */
     private void saveShotsToFile() {
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(SHOTS_SAVE_PATH))) {
             for (String shot : firedCells) {
-                writer.write(shot);  // Formato: "row,col"
+                writer.write(shot);
                 writer.newLine();
             }
         } catch (IOException e) {
@@ -985,7 +1063,9 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-    //Cargamos los disparos guardados
+    /**
+     * Loads player shots from file.
+     */
     private void loadShotsFromFile() {
         Path path = Paths.get(SHOTS_SAVE_PATH);
         if (!Files.exists(path)) return;
@@ -1000,7 +1080,6 @@ public class GameController extends NavigationAdapter {
                 String key = row + "," + col;
                 firedCells.add(key);
 
-                // Dibujar efecto del disparo según si fue acierto o agua
                 Optional<SavedShip> hitShip = enemyShips.stream().filter(s -> {
                     int size = switch (s.getType()) {
                         case "fragata" -> 1;
@@ -1022,7 +1101,7 @@ public class GameController extends NavigationAdapter {
                 } else {
                     String shipId = hitShip.get().getType() + "_" + hitShip.get().getRow() + "_" + hitShip.get().getCol();
                     int remaining = enemyRemainingParts.getOrDefault(shipId, -1);
-                    if (remaining == -1) continue; // no control
+                    if (remaining == -1) continue;
                     remaining--;
                     enemyRemainingParts.put(shipId, remaining);
 
@@ -1040,41 +1119,88 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-
-
-    //Funciones unicas de dibujo (temporales, se tienen que reemplazar por imagenes ilustrativas de cada una)-----------------------
+    /**
+     * Draws a miss marker on a cell.
+     * @param cell The cell to mark
+     */
     private void drawMiss(StackPane cell) {
         Label x = new Label("X");
         x.setStyle("-fx-text-fill: black; -fx-font-weight: bold;");
         cell.getChildren().add(x);
     }
 
+    /**
+     * Draws a hit marker on a cell.
+     * @param cell The cell to mark
+     */
     private void drawHit(StackPane cell) {
-        Rectangle r = new Rectangle(30, 30, Color.RED);
-        r.setOpacity(0.7);
-        cell.getChildren().add(r);
+        Rectangle redOverlay = new Rectangle(30, 30, Color.RED);
+        redOverlay.setOpacity(0.6);
+        cell.getChildren().add(redOverlay);
     }
 
-    private void drawSunk(SavedShip s) {
-        int size = switch (s.getType()) {
-            case "fragata"   -> 1;
-            case "submarino" -> 3;
-            case "destructor"-> 2;
-            case "portaviones"->4;
-            default          -> 0;
+    /**
+     * Draws a sunk ship on the enemy board.
+     * @param ship The sunk ship to draw
+     */
+    private void drawSunk(SavedShip ship) {
+        int size = switch (ship.getType()) {
+            case "fragata"    -> 1;
+            case "destructor" -> 2;
+            case "submarino"  -> 3;
+            case "portaviones"-> 4;
+            default -> 0;
         };
+
+        boolean horizontal = ship.isHorizontal();
+        int startRow = ship.getRow();
+        int startCol = ship.getCol();
+
         for (int i = 0; i < size; i++) {
-            int r = s.getRow() + (s.isHorizontal() ? 0 : i);
-            int c = s.getCol() + (s.isHorizontal() ? i : 0);
+            int r = startRow + (horizontal ? 0 : i);
+            int c = startCol + (horizontal ? i : 0);
             StackPane cell = getCellPaneAt(enemyBoard, r, c);
-            Rectangle part = new Rectangle(30, 30, Color.GREY);
-            part.setOpacity(0.8);
-            cell.getChildren().add(part);
+            if (cell != null) {
+                cell.getChildren().clear();
+            }
+        }
+
+        String imgPath = "/com/example/miniproyecto3/assets/" + ship.getType() +
+                (horizontal ? "derecha.png" : "abajo.png");
+        ImageView shipImage = new ImageView(new Image(getClass().getResourceAsStream(imgPath)));
+        shipImage.setFitWidth(horizontal ? 30 * size : 30);
+        shipImage.setFitHeight(horizontal ? 30 : 30 * size);
+        shipImage.setOpacity(0.8);
+
+        enemyBoard.getChildren().add(shipImage);
+        GridPane.setRowIndex(shipImage, startRow + 1);
+        GridPane.setColumnIndex(shipImage, startCol + 1);
+        if (horizontal) {
+            GridPane.setColumnSpan(shipImage, size);
+            GridPane.setRowSpan(shipImage, 1);
+        } else {
+            GridPane.setColumnSpan(shipImage, 1);
+            GridPane.setRowSpan(shipImage, size);
+        }
+
+        GridPane.setHalignment(shipImage, HPos.CENTER);
+        GridPane.setValignment(shipImage, VPos.CENTER);
+
+        for (int i = 0; i < size; i++) {
+            int r = startRow + (horizontal ? 0 : i);
+            int c = startCol + (horizontal ? i : 0);
+            StackPane cell = getCellPaneAt(enemyBoard, r, c);
+            if (cell != null) {
+                Rectangle grey = new Rectangle(30, 30, Color.GREY);
+                grey.setOpacity(0.5);
+                cell.getChildren().add(grey);
+            }
         }
     }
-//-----------------------------------------------------------------------------------
 
-    // Eliminar sombras previas
+    /**
+     * Clears ship placement previews from the board.
+     */
     private void clearPreviews() {
         for (Node node : gridBoard.getChildren()) {
             if (node instanceof StackPane stack) {
@@ -1085,7 +1211,10 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-
+    /**
+     * Shows a preview of ship placement.
+     * @param cell The cell to preview placement on
+     */
     private void previewShipPlacement(StackPane cell) {
         clearPreviews();
         if (selectedShipType == null) return;
@@ -1118,6 +1247,12 @@ public class GameController extends NavigationAdapter {
         }
     }
 
+    /**
+     * Gets the image path for a ship type and direction.
+     * @param type The ship type
+     * @param direction The ship direction
+     * @return The image path
+     */
     public static String getImagePath(String type, Direction direction) {
         String direccion = switch (direction) {
             case RIGHT -> "derecha";
@@ -1129,18 +1264,24 @@ public class GameController extends NavigationAdapter {
         return "/com/example/miniproyecto3/assets/" + type.toLowerCase() + direccion + ".png";
     }
 
-
-
+    /**
+     * Creates a ship object from a string type.
+     * @param shipType The ship type
+     * @return The created ship
+     */
     private Ship createShipFromString(String shipType) {
         return switch (shipType) {
             case "fragata"     -> new Fragata();
             case "submarino"   -> new Submarino();
             case "destructor"  -> new Destructor();
             case "portaviones" -> new Portaviones();
-            default             -> throw new IllegalArgumentException("Tipo de barco inválido: " + shipType); // ← no marcada;
+            default             -> throw new IllegalArgumentException("Tipo de barco inválido: " + shipType);
         };
     }
 
+    /**
+     * Loads all ship types into the selection area.
+     */
     private void loadShips() {
         addShipToSelection("fragata",     new Fragata());
         addShipToSelection("submarino",   new Submarino());
@@ -1148,16 +1289,19 @@ public class GameController extends NavigationAdapter {
         addShipToSelection("portaviones", new Portaviones());
     }
 
+    /**
+     * Adds a ship to the selection area.
+     * @param type The ship type
+     * @param ship The ship object
+     */
     private void addShipToSelection(String type, Ship ship) {
         HBox shipBox = new HBox(5);
         shipBox.setUserData(type);
 
-        // Label con contador
         Label countLabel = new Label(shipCounts.get(type).toString());
         countLabel.setUserData("label");
         shipBox.getChildren().add(countLabel);
 
-        // Usar imagen por tipo con dirección fija (ej. hacia abajo)
         String imagePath = "/com/example/miniproyecto3/assets/" + type.toLowerCase() + "abajo.png";
         Image image = new Image(getClass().getResourceAsStream(imagePath));
         ImageView preview = new ImageView(image);
@@ -1165,7 +1309,6 @@ public class GameController extends NavigationAdapter {
         preview.setFitHeight(30);
         preview.setUserData(type);
 
-        // Selección por clic
         preview.setOnMouseClicked(e -> {
             int currentCount = Integer.parseInt(countLabel.getText());
             if (currentCount <= 0) {
@@ -1194,7 +1337,6 @@ public class GameController extends NavigationAdapter {
             e.consume();
         });
 
-        // Evento para arrastrar
         preview.setOnDragDetected(event -> {
             int currentCount = Integer.parseInt(countLabel.getText());
             if (currentCount <= 0) {
@@ -1219,9 +1361,12 @@ public class GameController extends NavigationAdapter {
         shipSelectionArea.getChildren().add(shipBox);
     }
 
-
-
-
+    /**
+     * Gets a cell at specified coordinates.
+     * @param row The row index
+     * @param col The column index
+     * @return The StackPane cell or null if not found
+     */
     private StackPane getCellPaneAt(int row, int col) {
         for (Node n : gridBoard.getChildren()) {
             if (n instanceof StackPane) {
@@ -1235,7 +1380,10 @@ public class GameController extends NavigationAdapter {
         return null;
     }
 
-    //HU-1 Mostrar mensaje de error si no se puede colocar el barco
+    /**
+     * Shows a floating message on the screen.
+     * @param message The message to show
+     */
     private void showFloatingMessage(String message) {
         textFloat.setText(message);
         textFloat.setOpacity(1);
@@ -1246,7 +1394,11 @@ public class GameController extends NavigationAdapter {
         fade.play();
     }
 
-    //Contador Visual cuando se coloca un barco por click
+    /**
+     * Updates the count label for a ship type.
+     * @param type The ship type
+     * @param newCount The new count
+     */
     private void updateLabelCount(String type, int newCount) {
         for (Node node : shipSelectionArea.getChildren()) {
             if (node instanceof HBox hbox && hbox.getUserData().equals(type)) {
@@ -1260,7 +1412,9 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-    // --- NEW ---
+    /**
+     * Refreshes all ship counters in the selection area.
+     */
     private void refreshAllCounters() {
         for (Node node : shipSelectionArea.getChildren()) {
             if (node instanceof HBox hbox) {
@@ -1274,7 +1428,12 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-    //METODO AUXILIAR
+    /**
+     * Counts alive ships from a list.
+     * @param ships The list of ships
+     * @param remainingParts The map of remaining parts
+     * @return The count of alive ships
+     */
     private int countAliveShips(List<SavedShip> ships, Map<String, Integer> remainingParts) {
         int alive = 0;
         for (SavedShip s : ships) {
