@@ -1,81 +1,69 @@
 package com.example.miniproyecto3.controller;
 
 import com.example.miniproyecto3.storage.SavedShip;
+import com.example.miniproyecto3.ships.*;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
-import com.example.miniproyecto3.ships.*;
+import javafx.scene.image.ImageView;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import com.example.miniproyecto3.controller.PlacementException;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.*;
 import java.util.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;   // << new
-
-
 
 public class EnemyController extends NavigationAdapter {
 
     @FXML
     private GridPane enemyBoard;
-    private final Map<String, Integer> shipCounts = new HashMap<>();
-    private final int GRID_SIZE = 10;
+
+    private static final int GRID_SIZE = 10;
+    private static final int CELL_SIZE = 50;
+    private static final Color DEFAULT_COLOR = Color.web("#e6f7ff");
     private static final String SAVE_PATH = "enemy_board.txt";
 
+    private final Map<String, Integer> shipCounts = Map.of(
+            "fragata", 4,
+            "destructor", 3,
+            "submarino", 2,
+            "portaviones", 1
+    );
 
     @FXML
     public void initialize() {
-        shipCounts.put("fragata", 4);
-        shipCounts.put("destructor", 3);
-        shipCounts.put("submarino", 2);
-        shipCounts.put("portaviones", 1);
         createGrid();
         Path saveFile = Paths.get(SAVE_PATH);
         if (Files.exists(saveFile)) {
-            // board already saved → just paint it
-            List<SavedShip> ships = loadBoard(saveFile);
-            paintSavedShips(ships);
+            paintSavedShips(loadBoard(saveFile));
         } else {
-            placeShipsRandomly();  //Tambien guarda
+            placeShipsRandomly();
         }
     }
 
     private void createGrid() {
-        // Etiquetas de columna
-        int CELL_SIZE = 50;
         for (int col = 0; col < GRID_SIZE; col++) {
-            Label label = new Label(String.valueOf(col + 1));
-            label.setMinSize(CELL_SIZE, CELL_SIZE);
-            label.setAlignment(Pos.CENTER);
-            label.setStyle("-fx-font-weight: bold;");
+            Label label = createLabel(String.valueOf(col + 1));
             enemyBoard.add(label, col + 1, 0);
         }
-
-        // Etiquetas de fila
         for (int row = 0; row < GRID_SIZE; row++) {
-            Label label = new Label(String.valueOf((char) ('A' + row)));
-            label.setMinSize(CELL_SIZE, CELL_SIZE);
-            label.setAlignment(Pos.CENTER);
-            label.setStyle("-fx-font-weight: bold;");
+            Label label = createLabel(String.valueOf((char) ('A' + row)));
             enemyBoard.add(label, 0, row + 1);
         }
-
-        // Celdas del tablero
         for (int row = 0; row < GRID_SIZE; row++) {
             for (int col = 0; col < GRID_SIZE; col++) {
                 StackPane cell = new StackPane();
                 cell.setPrefSize(CELL_SIZE, CELL_SIZE);
                 Rectangle background = new Rectangle(CELL_SIZE, CELL_SIZE);
-                background.setFill(Color.web("#e6f7ff"));
+                background.setFill(DEFAULT_COLOR);
                 background.setStroke(Color.LIGHTGRAY);
                 cell.getChildren().add(background);
                 enemyBoard.add(cell, col + 1, row + 1);
@@ -83,68 +71,67 @@ public class EnemyController extends NavigationAdapter {
         }
     }
 
+    private Label createLabel(String text) {
+        Label label = new Label(text);
+        label.setMinSize(CELL_SIZE, CELL_SIZE);
+        label.setAlignment(Pos.CENTER);
+        label.setStyle("-fx-font-weight: bold;");
+        return label;
+    }
+
     private void placeShipsRandomly() {
         Random rand = new Random();
-        List<SavedShip> savedShips = new ArrayList<>();   // <‑‑ lista donde iremos guardando
-
+        List<SavedShip> savedShips = new ArrayList<>();
 
         for (Map.Entry<String, Integer> entry : shipCounts.entrySet()) {
-            String shipName = entry.getKey();
+            String type = entry.getKey();
             int count = entry.getValue();
-            int size = switch (shipName) {
-                case "fragata" -> 1;
-                case "submarino" -> 3;
-                case "destructor" -> 2;
-                case "portaviones" -> 4;
-                default -> 0;
-            };
+            int size = getShipSize(type);
 
             int attempts = 0;
             while (count > 0 && attempts < 1000) {
                 attempts++;
-
                 boolean horizontal = rand.nextBoolean();
                 int row = rand.nextInt(GRID_SIZE);
                 int col = rand.nextInt(GRID_SIZE);
 
                 if (canPlaceShip(row, col, size, horizontal)) {
-                    Ship ship = switch (shipName) {
-                        case "fragata" -> new Fragata();
-                        case "submarino" -> new Submarino();
-                        case "destructor" -> new Destructor();
-                        case "portaviones" -> new Portaviones();
-                        default -> throw new IllegalArgumentException("Tipo de barco inválido:");
+                    String imagePath = switch (type) {
+                        case "fragata"     -> "/com/example/miniproyecto3/assets/fragata.png";
+                        case "destructor"  -> "/com/example/miniproyecto3/assets/destructor.png";
+                        case "submarino"   -> "/com/example/miniproyecto3/assets/submarino.png";
+                        case "portaviones" -> "/com/example/miniproyecto3/assets/portaviones.png";
+                        default            -> null;
                     };
 
-                    if (ship == null) continue;
-
-                    Color color = (Color) ship.getParts()[0].getFill();
-
-                    for (int i = 0; i < size; i++) {
-                        int r = row + (horizontal ? 0 : i);
-                        int c = col + (horizontal ? i : 0);
-                        StackPane cell = getCell(r, c);
-                        Rectangle rect = (Rectangle) cell.getChildren().getFirst();
-                        rect.setFill(color);
+                    if (imagePath != null) {
+                        paintShip(row, col, size, horizontal, imagePath);
+                        savedShips.add(new SavedShip(type, row, col, horizontal));
+                        count--;
                     }
-
-                    // Guardamos la nave para persistencia
-                    savedShips.add(new SavedShip(shipName, row, col, horizontal));
-                    count--;
                 }
+
             }
 
             if (attempts >= 1000) {
-                System.out.println("No se pudo colocar todos los barcos de tipo: " + shipName);
+                try {
+                    throw new PlacementException("No se pudo colocar el barco de tipo: " + type);
+                } catch (PlacementException e) {
+                    System.err.println(e.getMessage());
+                    new Alert(Alert.AlertType.ERROR, e.getMessage()).showAndWait();
+                }
             }
         }
-        // 🔒 Persistimos el tablero en disco
+
         saveBoard(savedShips);
     }
 
-    //nuevo metodo publico para generar un nuevo archivo desde GameController
+
     public static void generateAndSaveEnemyBoard() {
-        final int GRID_SIZE = 10;
+        Random rand = new Random();
+        List<SavedShip> savedShips = new ArrayList<>();
+        boolean[][] occupied = new boolean[GRID_SIZE][GRID_SIZE];
+
         Map<String, Integer> shipCounts = Map.of(
                 "fragata", 4,
                 "submarino", 2,
@@ -152,14 +139,10 @@ public class EnemyController extends NavigationAdapter {
                 "portaviones", 1
         );
 
-        Random rand = new Random();
-        List<SavedShip> savedShips = new ArrayList<>();
-        boolean[][] occupied = new boolean[GRID_SIZE][GRID_SIZE];
-
         for (Map.Entry<String, Integer> entry : shipCounts.entrySet()) {
-            String shipName = entry.getKey();
+            String type = entry.getKey();
             int count = entry.getValue();
-            int size = switch (shipName) {
+            int size = switch (type) {
                 case "fragata" -> 1;
                 case "submarino" -> 3;
                 case "destructor" -> 2;
@@ -174,16 +157,13 @@ public class EnemyController extends NavigationAdapter {
                 int row = rand.nextInt(GRID_SIZE);
                 int col = rand.nextInt(GRID_SIZE);
 
-                // ✅ NUEVA validación de espacio antes del loop
-                if ((horizontal && col + size > GRID_SIZE) || (!horizontal && row + size > GRID_SIZE)) {
-                    continue;
-                }
+                if ((horizontal && col + size > GRID_SIZE) || (!horizontal && row + size > GRID_SIZE)) continue;
 
                 boolean canPlace = true;
                 for (int i = 0; i < size; i++) {
                     int r = row + (horizontal ? 0 : i);
                     int c = col + (horizontal ? i : 0);
-                    if (r >= GRID_SIZE || c >= GRID_SIZE || occupied[r][c]) {
+                    if (occupied[r][c]) {
                         canPlace = false;
                         break;
                     }
@@ -195,7 +175,7 @@ public class EnemyController extends NavigationAdapter {
                         int c = col + (horizontal ? i : 0);
                         occupied[r][c] = true;
                     }
-                    savedShips.add(new SavedShip(shipName, row, col, horizontal));
+                    savedShips.add(new SavedShip(type, row, col, horizontal));
                     count--;
                 }
             }
@@ -212,16 +192,13 @@ public class EnemyController extends NavigationAdapter {
         }
     }
 
-
-
-     /* Escribe la instantánea del tablero en un archivo de texto sin formato (CSV).    */
     private void saveBoard(List<SavedShip> ships) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(EnemyController.SAVE_PATH))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(SAVE_PATH))) {
             for (SavedShip ship : ships) {
                 writer.write(ship.toString());
                 writer.newLine();
             }
-            System.out.println("Board saved to: " + EnemyController.SAVE_PATH);
+            System.out.println("Board saved to: " + SAVE_PATH);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -231,15 +208,50 @@ public class EnemyController extends NavigationAdapter {
         for (int i = 0; i < size; i++) {
             int r = row + (horizontal ? 0 : i);
             int c = col + (horizontal ? i : 0);
-
             if (r >= GRID_SIZE || c >= GRID_SIZE) return false;
 
             StackPane cell = getCell(r, c);
             Rectangle rect = (Rectangle) cell.getChildren().getFirst();
-            if (!rect.getFill().equals(Color.web("#e6f7ff"))) return false;
+            if (!rect.getFill().equals(DEFAULT_COLOR)) return false;
         }
         return true;
     }
+
+    private void paintShip(int row, int col, int size, boolean horizontal, String imagePath) {
+        Image image = new Image(getClass().getResourceAsStream(imagePath));
+        ImageView shipView = new ImageView(image);
+
+        if (horizontal) {
+            shipView.setFitWidth(size * CELL_SIZE);
+            shipView.setFitHeight(CELL_SIZE);
+        } else {
+            shipView.setFitWidth(CELL_SIZE);
+            shipView.setFitHeight(size * CELL_SIZE);
+        }
+
+        shipView.setPreserveRatio(false);
+        shipView.setSmooth(true);
+
+        // Limpiar celdas
+        for (int i = 0; i < size; i++) {
+            int r = row + (horizontal ? 0 : i);
+            int c = col + (horizontal ? i : 0);
+            StackPane cell = getCell(r, c);
+            if (cell != null) cell.getChildren().clear();
+        }
+
+        StackPane imageContainer = new StackPane(shipView);
+        imageContainer.setPickOnBounds(false);
+        StackPane.setAlignment(shipView, Pos.CENTER);
+
+        GridPane.setRowIndex(imageContainer, row + 1);
+        GridPane.setColumnIndex(imageContainer, col + 1);
+        GridPane.setRowSpan(imageContainer, horizontal ? 1 : size);
+        GridPane.setColumnSpan(imageContainer, horizontal ? size : 1);
+
+        enemyBoard.getChildren().add(imageContainer);
+    }
+
 
     private StackPane getCell(int row, int col) {
         for (Node node : enemyBoard.getChildren()) {
@@ -251,6 +263,26 @@ public class EnemyController extends NavigationAdapter {
             }
         }
         throw new IllegalStateException("No se encontró la celda en [" + row + "," + col + "]");
+    }
+
+    private int getShipSize(String type) {
+        return switch (type) {
+            case "fragata" -> 1;
+            case "submarino" -> 3;
+            case "destructor" -> 2;
+            case "portaviones" -> 4;
+            default -> throw new IllegalArgumentException("Tipo de barco inválido: " + type);
+        };
+    }
+
+    private Ship createShipInstance(String type) {
+        return switch (type) {
+            case "fragata" -> new Fragata();
+            case "submarino" -> new Submarino();
+            case "destructor" -> new Destructor();
+            case "portaviones" -> new Portaviones();
+            default -> throw new IllegalArgumentException("Tipo de barco inválido: " + type);
+        };
     }
 
     public void returnBoard(ActionEvent event) {
@@ -270,42 +302,36 @@ public class EnemyController extends NavigationAdapter {
         return ships;
     }
 
-    /**
-     * Re‑draws the enemy grid from the list we just read.
-     */
     private void paintSavedShips(List<SavedShip> ships) {
-
         for (SavedShip s : ships) {
-            // 1) size lookup
-            int size = switch (s.getType()) {
-                case "fragata"     -> 1;
-                case "submarino"   -> 3;
-                case "destructor"  -> 2;
-                case "portaviones" -> 4;
-                default            -> 0;
-            };
+            int size = getShipSize(s.getType());
+            String direccion;
 
-            // 2) obtain the colour the same way you already do
-            Ship model = switch (s.getType()) {
-                case "fragata"     -> new Fragata();
-                case "submarino"   -> new Submarino();
-                case "destructor"  -> new Destructor();
-                case "portaviones" -> new Portaviones();
-                default            -> null;
-            };
-            if (model == null) continue;
-            Color colour = (Color) model.getParts()[0].getFill();
-
-            // 3) paint every cell of that ship
-            for (int i = 0; i < size; i++) {
-                int r = s.getRow() + (s.isHorizontal() ? 0 : i);
-                int c = s.getCol() + (s.isHorizontal() ? i : 0);
-
-                Rectangle rect = (Rectangle) getCell(r, c).getChildren().getFirst();
-                rect.setFill(colour);
+            // Deducción textual basada en orientación y posición
+            if (s.isHorizontal()) {
+                direccion = (s.getCol() + size <= GRID_SIZE) ? "derecha" : "izquierda";
+            } else {
+                direccion = (s.getRow() + size <= GRID_SIZE) ? "abajo" : "arriba";
             }
+
+            String imagePath = "/com/example/miniproyecto3/assets/" + s.getType().toLowerCase() + direccion + ".png";
+            paintShip(s.getRow(), s.getCol(), size, s.isHorizontal(), imagePath);
         }
     }
+
+
+
+    private static String getImagePath(String type, boolean horizontal, int row, int col, int size) {
+        String direction;
+
+        if (horizontal) {
+            // Si el barco cabe hacia la derecha, es "derecha", si no, "izquierda"
+            direction = (col + size <= GRID_SIZE) ? "derecha" : "izquierda";
+        } else {
+            direction = (row + size <= GRID_SIZE) ? "abajo" : "arriba";
+        }
+
+        return "/com/example/miniproyecto3/assets/" + type.toLowerCase() + direction + ".png";
+    }
+
 }
-
-

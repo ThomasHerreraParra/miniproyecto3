@@ -2,19 +2,57 @@
 
 <?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
 
-<VBox alignment="CENTER" spacing="20" xmlns:fx="http://javafx.com/fxml/1" xmlns="http://javafx.com/javafx/17.0.12" fx:controller="com.example.miniproyecto3.controller.StartController">
-    <padding><Insets bottom="40" left="20" right="20" top="40" /></padding>
+<StackPane xmlns="http://javafx.com/javafx/17.0.12"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="com.example.miniproyecto3.controller.StartController">
 
-    <Button fx:id= "btnNewGame"
-            text="Nueva Partida"
-            onAction="#handleNewGame"
-            disable="true"
-    />
-    <Button fx:id="btnPlay" onAction="#onPlayClicked" text="Jugar" />
-    <!-- NUEVO BOTÓN CONTINUAR -->
-    <Button fx:id="btnContinue" mnemonicParsing="false" text="Continuar" onAction="#handleContinue"/>
-    <Button fx:id="btnInstructions" onAction="#onInstructionsClicked" text="Instrucciones" />
-    <Button onAction="#onExitClicked" text="Salir" />
-</VBox>
+    <!-- Fondo -->
+    <ImageView fitWidth="1920" fitHeight="1080" preserveRatio="false">
+        <image>
+            <Image url="@assets/background.png"/>
+        </image>
+    </ImageView>
+
+    <!-- Contenido -->
+    <VBox alignment="CENTER" spacing="25">
+        <padding><Insets top="40" right="20" bottom="80" left="20"/></padding>
+
+        <!-- Logo -->
+        <ImageView fitWidth="500" preserveRatio="true">
+            <image>
+                <Image url="@assets/logo.png"/>
+            </image>
+        </ImageView>
+
+        <!-- Botones estilizados directamente -->
+        <Button fx:id="btnNewGame"
+                text="Nueva Partida"
+                onAction="#handleNewGame"
+                disable="true"
+                style="-fx-background-color: #2d539c; -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 10 20;"/>
+
+        <Button fx:id="btnPlay"
+                text="Jugar"
+                onAction="#onPlayClicked"
+                style="-fx-background-color: #2d539c; -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 10 20;"/>
+
+        <Button fx:id="btnContinue"
+                text="Continuar"
+                onAction="#handleContinue"
+                style="-fx-background-color: #2d539c; -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 10 20;"/>
+
+        <Button fx:id="btnInstructions"
+                text="Instrucciones"
+                onAction="#onInstructionsClicked"
+                style="-fx-background-color: #2d539c; -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 10 20;"/>
+
+        <Button text="Salir"
+                onAction="#onExitClicked"
+                style="-fx-background-color: #2d539c; -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 10 20;"/>
+
+    </VBox>
+</StackPane>

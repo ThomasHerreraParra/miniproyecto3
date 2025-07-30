@@ -9,11 +9,11 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        StartStage startStage = new StartStage(); // Muestra la pantalla de inicio
+        StartStage startStage = new StartStage();
         startStage.show();
     }
 
     public static void main(String[] args) {
-        launch(args); // Lanza la aplicación
+        launch(args);
     }
 }

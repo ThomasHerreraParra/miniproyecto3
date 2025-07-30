@@ -1,14 +1,47 @@
-<?import javafx.scene.layout.VBox?>
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.Button?>
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
 <?import javafx.geometry.Insets?>
-<VBox xmlns:fx="http://javafx.com/fxml" fx:controller="com.example.miniproyecto3.controller.InstructionsController"
-      alignment="CENTER" spacing="20">
-    <padding><Insets top="40" bottom="40" left="20" right="20"/></padding>
 
-    <Label text="Instrucciones" style="-fx-font-size: 20px; -fx-font-weight: bold;" />
-    <Label text="1 - (esto lo agrego yo)" />
+<StackPane xmlns="http://javafx.com/javafx/17.0.12"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.example.miniproyecto3.controller.InstructionsController">
 
-    <!-- Botón de regresar -->
-    <Button text="Regresar" onAction="#handleBack"/>
-</VBox>
+    <!-- Fondo oscuro -->
+    <ImageView fitWidth="1920" fitHeight="1080" preserveRatio="false">
+        <image>
+            <Image url="@assets/background.png"/>
+        </image>
+    </ImageView>
+
+    <!-- Contenido -->
+    <VBox alignment="CENTER" spacing="25" maxWidth="900">
+        <padding>
+            <Insets top="40" right="40" bottom="40" left="40"/>
+        </padding>
+
+        <Label text="¿Cómo Jugar Batalla Naval?"
+               style="-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: white;"/>
+
+        <VBox spacing="15" maxWidth="800">
+            <Label text="1. Selecciona y ubica tus barcos en el tablero izquierdo."
+                   style="-fx-text-fill: white; -fx-font-size: 16px;"/>
+            <Label text="2. Cuando estén todos los barcos colocados, pulsa 'Jugar' para iniciar la partida."
+                   style="-fx-text-fill: white; -fx-font-size: 16px;"/>
+            <Label text="3. En tu turno, haz clic en una celda del tablero derecho para atacar."
+                   style="-fx-text-fill: white; -fx-font-size: 16px;"/>
+            <Label text="4. Si aciertas, se mostrará el impacto. Si fallas, será el turno del oponente."
+                   style="-fx-text-fill: white; -fx-font-size: 16px;"/>
+            <Label text="5. El primer jugador en hundir todos los barcos del enemigo, ¡gana!"
+                   style="-fx-text-fill: white; -fx-font-size: 16px;"/>
+        </VBox>
+
+        <!-- Botón -->
+        <Button text="Regresar" onAction="#handleBack"
+                style="-fx-background-color: #004080; -fx-text-fill: white;
+                       -fx-font-size: 16px; -fx-background-radius: 15; -fx-padding: 10 25;"/>
+    </VBox>
+</StackPane>

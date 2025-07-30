@@ -11,6 +11,9 @@ public class Destructor extends Ship {
      * Constructor del destructor. Usa color rojo oscuro.
      */
     public Destructor() {
-        super(2, Color.DARKRED);
+        super(2);
+    }
+    public String getType() {
+        return "destructor";
     }
 }

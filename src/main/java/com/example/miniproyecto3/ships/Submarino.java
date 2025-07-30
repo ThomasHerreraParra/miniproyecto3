@@ -11,6 +11,9 @@ public class Submarino extends Ship {
      * Constructor del submarino. Usa color verde oscuro.
      */
     public Submarino() {
-        super(3, Color.DARKGREEN);
+        super(3);
+    }
+    public String getType() {
+        return "submarino";
     }
 }

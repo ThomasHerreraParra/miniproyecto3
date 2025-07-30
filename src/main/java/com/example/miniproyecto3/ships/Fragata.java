@@ -11,6 +11,9 @@ public class Fragata extends Ship {
      * Constructor de la fragata. Usa color gris.
      */
     public Fragata() {
-        super(1, Color.GRAY);
+        super(1);
+    }
+    public String getType() {
+        return "fragata";
     }
 }
