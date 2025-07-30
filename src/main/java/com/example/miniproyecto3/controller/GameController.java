@@ -177,20 +177,31 @@ public class GameController extends NavigationAdapter {
         }
     }
 
-    private class BackgroundMusicPlayer {
-        private Clip clip;
+    public class BackgroundMusicPlayer {
+        private static Clip clip;
 
-        public void playLoop() {
+        public static void playLoop() {
+            if (clip != null && clip.isRunning()) {
+                return; // Ya está sonando, no hagas nada
+            }
+
             try {
-                System.out.println("Intentando reproducir música...");
                 AudioInputStream audioIn = AudioSystem.getAudioInputStream(
-                        getClass().getResource("/com/example/miniproyecto3/assets/backgroundmusic.wav")
+                        BackgroundMusicPlayer.class.getResource("/com/example/miniproyecto3/assets/backgroundmusic.wav")
                 );
                 clip = AudioSystem.getClip();
                 clip.open(audioIn);
                 clip.loop(Clip.LOOP_CONTINUOUSLY);
             } catch (Exception e) {
                 System.err.println("Error playing music: " + e.getMessage());
+            }
+        }
+
+        public static void stop() {
+            if (clip != null && clip.isRunning()) {
+                clip.stop();
+                clip.close();
+                clip = null;
             }
         }
     }
